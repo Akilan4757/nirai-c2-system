@@ -206,6 +206,19 @@ export function App() {
     });
   };
 
+  const handleClearAllRecords = () => {
+    if (window.confirm('Are you sure you want to clear all active SOS cases and audit records?')) {
+      fetch(`${API_BASE}/v1/cases/clear-all`, { method: 'POST' })
+        .then(res => res.json())
+        .then(() => {
+          setCases([]);
+          setAuditLogs([]);
+          setSelectedCaseId(null);
+        })
+        .catch(console.error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950">
       <Header
@@ -213,6 +226,7 @@ export function App() {
         isConnected={isConnected}
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
+        onClearAllRecords={handleClearAllRecords}
       />
 
       <div className="px-6 pt-2 pb-1">

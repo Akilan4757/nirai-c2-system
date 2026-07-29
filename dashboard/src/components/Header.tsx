@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal } from 'lucide-react';
+import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal, Trash2 } from 'lucide-react';
 import { Case } from '../types';
 
 interface HeaderProps {
@@ -7,13 +7,15 @@ interface HeaderProps {
   isConnected: boolean;
   onOpenAuditLog: () => void;
   onOpenSimulator: () => void;
+  onClearAllRecords: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   cases,
   isConnected,
   onOpenAuditLog,
-  onOpenSimulator
+  onOpenSimulator,
+  onClearAllRecords
 }) => {
   const [time, setTime] = useState<string>(new Date().toLocaleTimeString());
 
@@ -81,6 +83,14 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls & Clock */}
       <div className="flex items-center space-x-3">
+        <button
+          onClick={onClearAllRecords}
+          className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+          <span>CLEAR ALL RECORDS</span>
+        </button>
+
         <button
           onClick={onOpenSimulator}
           className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono"

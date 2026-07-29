@@ -518,6 +518,19 @@ app.post('/v1/drones/telemetry', (req, res) => {
   res.json({ success: true, drone });
 });
 
+// Clear All Active Records Endpoint
+app.post('/v1/cases/clear-all', (req, res) => {
+  state.cases = [];
+  state.auditLogs = [];
+  broadcast('INITIAL_STATE', {
+    cases: state.cases,
+    officers: state.officers,
+    drones: state.drones,
+    auditLogs: state.auditLogs
+  });
+  res.json({ success: true, message: 'All active records cleared successfully.' });
+});
+
 // Recall Specific Drone
 app.post('/v1/drones/:id/recall', (req, res) => {
   const drone = state.drones.find(d => d.id === req.params.id);

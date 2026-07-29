@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Case, Officer, Drone } from '../types';
 
@@ -11,29 +11,40 @@ interface LiveMapProps {
   onSelectCase: (caseId: string) => void;
 }
 
-// Custom Leaflet Icons using SVG Data URLs
-const createSvgIcon = (color: string, symbol: string, isPulsing: boolean = false) => {
-  const pulseHtml = isPulsing ? `<div class="absolute -inset-2 rounded-full bg-${color}-500/40 animate-ping"></div>` : '';
+// Custom Leaflet Icons with explicit Inline CSS Hex Colors for maximum contrast
+const createSvgIcon = (bgColor: string, borderColor: string, symbol: string, isPulsing: boolean = false) => {
+  const pulseHtml = isPulsing ? `<div style="position:absolute; inset:-6px; border-radius:9999px; background-color:${borderColor}; opacity:0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>` : '';
   const svg = `
-    <div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 border-2 border-${color} shadow-lg text-white font-bold font-mono text-xs">
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background-color:${bgColor}; border:3px solid ${borderColor}; box-shadow: 0 0 12px ${borderColor}; color:white; font-weight:bold; font-family:monospace; font-size:11px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">
       ${pulseHtml}
-      <span>${symbol}</span>
+      <span style="position:relative; z-index:10;">${symbol}</span>
     </div>
   `;
   return L.divIcon({
     html: svg,
     className: 'custom-map-icon',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   });
 };
 
-const caseIconUnassigned = createSvgIcon('rose-500', 'SOS', true);
-const caseIconAssigned = createSvgIcon('amber-500', 'SOS');
-const caseIconAirborne = createSvgIcon('cyan-400', 'AIR');
-const officerIcon = createSvgIcon('blue-400', 'POL');
-const motherDroneIcon = createSvgIcon('purple-400', 'MD');
-const childDroneIcon = createSvgIcon('teal-300', 'CD');
+// Distinct Vivid Map Markers
+const caseIconUnassigned = createSvgIcon('#881337', '#ef4444', 'SOS', true);
+const caseIconAssigned = createSvgIcon('#78350f', '#f59e0b', 'SOS');
+const caseIconAirborne = createSvgIcon('#083344', '#06b6d4', 'AIR');
+const officerIcon = createSvgIcon('#1e3a8a', '#3b82f6', 'POL');
+const motherDroneIcon = createSvgIcon('#581c87', '#a855f7', 'MD');
+const childDroneIcon = createSvgIcon('#064e3b', '#10b981', 'CD');
+
+const MapRecenter = ({ caseItem }: { caseItem: Case | null }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (caseItem) {
+      map.flyTo([caseItem.location.lat, caseItem.location.lng], 15, { animate: true, duration: 1.2 });
+    }
+  }, [caseItem, map]);
+  return null;
+};
 
 export const LiveMap: React.FC<LiveMapProps> = ({
   cases,
@@ -44,13 +55,13 @@ export const LiveMap: React.FC<LiveMapProps> = ({
 }) => {
   const defaultCenter: [number, number] = [13.0827, 80.2707]; // Chennai Central
 
-  const selectedCase = cases.find(c => c.id === selectedCaseId);
+  const selectedCase = cases.find(c => c.id === selectedCaseId) || (cases.length > 0 ? cases[0] : null);
   const activeDrones = drones.filter(d => d.status === 'airborne');
 
   return (
     <div className="relative w-full h-full bg-slate-950">
       <MapContainer
-        center={defaultCenter}
+        center={selectedCase ? [selectedCase.location.lat, selectedCase.location.lng] : defaultCenter}
         zoom={14}
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
@@ -59,6 +70,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        <MapRecenter caseItem={selectedCase} />
 
         {/* SOS Cases */}
         {cases.map((c) => {
@@ -93,14 +106,14 @@ export const LiveMap: React.FC<LiveMapProps> = ({
                 </Popup>
               </Marker>
 
-              {/* 300m Proximity Radius Ring around SOS */}
+              {/* Proximity Radius Ring */}
               <Circle
                 center={[c.location.lat, c.location.lng]}
                 radius={300}
                 pathOptions={{
                   color: c.id === selectedCaseId ? '#06b6d4' : '#ef4444',
                   fillColor: c.id === selectedCaseId ? '#06b6d4' : '#ef4444',
-                  fillOpacity: 0.08,
+                  fillOpacity: 0.12,
                   dashArray: '4, 8'
                 }}
               />
@@ -116,10 +129,9 @@ export const LiveMap: React.FC<LiveMapProps> = ({
             icon={officerIcon}
           >
             <Popup>
-              <div className="p-1">
-                <span className="font-mono text-xs font-bold text-blue-400 block">{o.badgeId}</span>
-                <p className="text-xs font-semibold text-white">{o.name}</p>
-                <p className="text-[10px] text-slate-400 font-mono">{o.vehicle}</p>
+              <div className="p-1 font-mono">
+                <span className="text-xs font-bold text-blue-400 block">{o.badgeId} • {o.name}</span>
+                <p className="text-[10px] text-slate-300">{o.vehicle}</p>
               </div>
             </Popup>
           </Marker>
@@ -157,24 +169,24 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         ))}
       </MapContainer>
 
-      {/* Map HUD Overlay */}
-      <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-3 z-[1000] text-xs font-mono space-y-1.5 shadow-xl">
-        <div className="text-slate-400 text-[10px] uppercase font-semibold">MAP LEGEND</div>
+      {/* Distinct Color Map HUD Legend */}
+      <div className="absolute top-4 left-4 bg-slate-900/95 backdrop-blur border border-slate-800 rounded-lg p-3 z-[1000] text-xs font-mono space-y-2 shadow-2xl">
+        <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">MAP LEGEND (VIVID CODES)</div>
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
-          <span>Active SOS Pin</span>
+          <div className="w-3.5 h-3.5 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_8px_#ef4444] animate-pulse" />
+          <span className="text-rose-300 font-bold">🔴 Active SOS Pin</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <span>On-Duty Police Unit</span>
+          <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border border-blue-400 shadow-[0_0_8px_#3b82f6]" />
+          <span className="text-blue-300 font-bold">🔵 Police Unit</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 rounded-full bg-purple-500" />
-          <span>Mother Drone Dock</span>
+          <div className="w-3.5 h-3.5 rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_8px_#a855f7]" />
+          <span className="text-purple-300 font-bold">🟣 Mother Drone Station</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 rounded-full bg-cyan-400" />
-          <span>Child Recon Drone</span>
+          <div className="w-3.5 h-3.5 rounded-full bg-cyan-600 border border-cyan-400 shadow-[0_0_8px_#06b6d4]" />
+          <span className="text-cyan-300 font-bold">🟢 Child Recon Drone</span>
         </div>
       </div>
     </div>
