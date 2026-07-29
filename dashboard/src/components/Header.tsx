@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal, Trash2 } from 'lucide-react';
+import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck } from 'lucide-react';
 import { Case } from '../types';
+import { UserSession } from './DashboardAuthScreen';
 
 interface HeaderProps {
   cases: Case[];
@@ -8,6 +9,8 @@ interface HeaderProps {
   onOpenAuditLog: () => void;
   onOpenSimulator: () => void;
   onClearAllRecords: () => void;
+  session?: UserSession | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,7 +18,9 @@ export const Header: React.FC<HeaderProps> = ({
   isConnected,
   onOpenAuditLog,
   onOpenSimulator,
-  onClearAllRecords
+  onClearAllRecords,
+  session,
+  onLogout
 }) => {
   const [time, setTime] = useState<string>(new Date().toLocaleTimeString());
 
@@ -76,8 +81,25 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right Controls & Clock */}
+      {/* Right Controls, User Badge & Clock */}
       <div className="flex items-center space-x-3">
+        {/* User Session Badge */}
+        {session && (
+          <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2">
+            <UserCheck className="w-4 h-4 text-cyan-400" />
+            <div className="text-left font-mono">
+              <span className="text-xs font-bold text-slate-200 block max-w-[140px] truncate">{session.name}</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                session.isSuperAdmin
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+              }`}>
+                {session.role}
+              </span>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={onClearAllRecords}
           className="bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/60 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono shadow-lg shadow-rose-900/30 font-bold"
@@ -101,6 +123,16 @@ export const Header: React.FC<HeaderProps> = ({
           <Cpu className="w-3.5 h-3.5 text-cyan-400" />
           <span>EVIDENCE LOG</span>
         </button>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            title="Sign Out"
+            className="bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/50 p-2 rounded-lg transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        )}
 
         <div className="hidden lg:block text-right border-l border-slate-800 pl-4 font-mono">
           <span className="text-xs text-slate-400 block">IST TIME</span>

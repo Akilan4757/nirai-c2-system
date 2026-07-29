@@ -9,12 +9,32 @@ import { DroneControlPanel } from './components/DroneControlPanel';
 import { AuditLogModal } from './components/AuditLogModal';
 import { SimulatorControls } from './components/SimulatorControls';
 import { ConnectedDevicesPanel } from './components/ConnectedDevicesPanel';
+import { DashboardAuthScreen, UserSession } from './components/DashboardAuthScreen';
 import { Case, Officer, Drone, AuditLog } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000`;
 
 export function App() {
+  const [userSession, setUserSession] = useState<UserSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('nirai_c2_session');
+      return saved ? JSON.parse(saved) : {
+        email: 'senthilakilan47@gmail.com',
+        name: 'Senthil Akilan (Super Admin)',
+        role: 'SUPER ADMIN',
+        isSuperAdmin: true
+      };
+    } catch (e) {
+      return {
+        email: 'senthilakilan47@gmail.com',
+        name: 'Senthil Akilan (Super Admin)',
+        role: 'SUPER ADMIN',
+        isSuperAdmin: true
+      };
+    }
+  });
+
   const [cases, setCases] = useState<Case[]>([]);
   const [officers, setOfficers] = useState<Officer[]>([]);
   const [drones, setDrones] = useState<Drone[]>([]);
@@ -282,6 +302,17 @@ export function App() {
     }
   };
 
+  if (!userSession) {
+    return (
+      <DashboardAuthScreen
+        onLoginSuccess={(session) => {
+          setUserSession(session);
+          try { localStorage.setItem('nirai_c2_session', JSON.stringify(session)); } catch (e) {}
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950">
       <Header
@@ -290,6 +321,11 @@ export function App() {
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onClearAllRecords={handleClearAllRecords}
+        session={userSession}
+        onLogout={() => {
+          setUserSession(null);
+          try { localStorage.removeItem('nirai_c2_session'); } catch (e) {}
+        }}
       />
 
       <div className="px-6 pt-2 pb-1">
