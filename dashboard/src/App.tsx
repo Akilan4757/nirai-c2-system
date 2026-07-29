@@ -10,6 +10,7 @@ import { AuditLogModal } from './components/AuditLogModal';
 import { SimulatorControls } from './components/SimulatorControls';
 import { ConnectedDevicesPanel } from './components/ConnectedDevicesPanel';
 import { DashboardAuthScreen, UserSession } from './components/DashboardAuthScreen';
+import { SuperAdminModal } from './components/SuperAdminModal';
 import { Case, Officer, Drone, AuditLog } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
@@ -19,19 +20,9 @@ export function App() {
   const [userSession, setUserSession] = useState<UserSession | null>(() => {
     try {
       const saved = localStorage.getItem('nirai_c2_session');
-      return saved ? JSON.parse(saved) : {
-        email: 'senthilakilan47@gmail.com',
-        name: 'Senthil Akilan (Super Admin)',
-        role: 'SUPER ADMIN',
-        isSuperAdmin: true
-      };
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
-      return {
-        email: 'senthilakilan47@gmail.com',
-        name: 'Senthil Akilan (Super Admin)',
-        role: 'SUPER ADMIN',
-        isSuperAdmin: true
-      };
+      return null;
     }
   });
 
@@ -42,9 +33,11 @@ export function App() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Modals
+  // Modals & Sector Zoning
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
+  const [selectedZone, setSelectedZone] = useState('ALL');
   const [dispatchModalCaseId, setDispatchModalCaseId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -321,6 +314,7 @@ export function App() {
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onClearAllRecords={handleClearAllRecords}
+        onOpenSuperAdminModal={() => setIsSuperAdminModalOpen(true)}
         session={userSession}
         onLogout={() => {
           setUserSession(null);
@@ -397,6 +391,24 @@ export function App() {
         onTriggerSOS={handleTriggerSOS}
         onSimulateOfficerMove={handleSimulateOfficerMove}
       />
+
+      {userSession?.isSuperAdmin && (
+        <SuperAdminModal
+          isOpen={isSuperAdminModalOpen}
+          onClose={() => setIsSuperAdminModalOpen(false)}
+          session={userSession}
+          drones={drones}
+          officers={officers}
+          cases={cases}
+          selectedZone={selectedZone}
+          onSelectZone={(zone) => setSelectedZone(zone)}
+          onRecallAllDrones={() => {
+            fetch(`${API_BASE}/v1/drones/ground-all`, { method: 'POST' }).catch(() => {});
+            setDrones(prev => prev.map(d => ({ ...d, status: 'docked', altitudeMeters: 0, speedKmh: 0 })));
+            alert('MASTER OVERRIDE ENGAGED: Grounding signal transmitted to all airborne drones.');
+          }}
+        />
+      )}
     </div>
   );
 }

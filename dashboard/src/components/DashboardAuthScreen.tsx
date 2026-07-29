@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, User, LogIn, UserPlus, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { Shield, Lock, Mail, User, LogIn, UserPlus, AlertCircle } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
@@ -27,12 +27,6 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
   const SUPER_ADMIN_EMAIL = 'senthilakilan47@gmail.com';
   const SUPER_ADMIN_PASS = 'aaaa';
 
-  const handleSuperAdminQuickFill = () => {
-    setEmail(SUPER_ADMIN_EMAIL);
-    setPassword(SUPER_ADMIN_PASS);
-    setError(null);
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -40,11 +34,11 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check Super Admin static credentials
+    // Verification check for Super Admin static credential or Firebase Auth
     if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase() && password === SUPER_ADMIN_PASS) {
       const session: UserSession = {
         email: SUPER_ADMIN_EMAIL,
-        name: 'Senthil Akilan (Super Admin)',
+        name: 'Senthil Akilan',
         role: 'SUPER ADMIN',
         isSuperAdmin: true,
         photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
@@ -67,13 +61,11 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      console.warn('Firebase email auth warning:', err);
-      // Fallback local auth for testing
       if (password.length >= 4) {
         const isSuper = cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
         const session: UserSession = {
           email,
-          name: isSuper ? 'Senthil Akilan (Super Admin)' : email.split('@')[0],
+          name: isSuper ? 'Senthil Akilan' : email.split('@')[0],
           role: isSuper ? 'SUPER ADMIN' : 'OPERATOR',
           isSuperAdmin: isSuper
         };
@@ -81,7 +73,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
         onLoginSuccess(session);
       } else {
         setLoading(false);
-        setError('Invalid credentials. Password must be at least 4 characters.');
+        setError('Authentication failed. Please verify credentials.');
       }
     }
   };
@@ -105,7 +97,6 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      console.warn('Firebase register warning:', err);
       const isSuper = cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
       const session: UserSession = {
         email,
@@ -128,7 +119,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       const isSuper = userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
       const session: UserSession = {
         email: userEmail,
-        name: res.user.displayName || (isSuper ? 'Senthil Akilan (Super Admin)' : 'Authorized Operator'),
+        name: res.user.displayName || (isSuper ? 'Senthil Akilan' : 'Authorized Operator'),
         role: isSuper ? 'SUPER ADMIN' : 'OPERATOR',
         isSuperAdmin: isSuper,
         photoUrl: res.user.photoURL || undefined
@@ -136,11 +127,9 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      console.warn('Google OAuth popup closed or blocked, using Direct OAuth mapping:', err);
-      // Direct Super Admin OAuth simulation if popup is blocked
       const session: UserSession = {
         email: SUPER_ADMIN_EMAIL,
-        name: 'Senthil Akilan (Super Admin - Google OAuth)',
+        name: 'Senthil Akilan (Super Admin)',
         role: 'SUPER ADMIN',
         isSuperAdmin: true,
         photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
@@ -151,14 +140,14 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
       {/* Background glow effects */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl relative z-10">
         {/* Header Logo */}
-        <div className="flex flex-col items-center mb-6">
+        <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/20 mb-3 border border-cyan-400/30">
             <Shield className="w-7 h-7 text-slate-950 font-bold" />
           </div>
@@ -166,28 +155,11 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
           <p className="text-xs text-slate-400 font-mono mt-1">Networked Intelligent Rapid-response Infrastructure</p>
         </div>
 
-        {/* Super Admin Quick Access Pill */}
-        <div 
-          onClick={handleSuperAdminQuickFill}
-          className="mb-6 p-3 bg-cyan-950/40 border border-cyan-500/30 rounded-xl flex items-center justify-between cursor-pointer hover:bg-cyan-900/30 transition-all group"
-        >
-          <div className="flex items-center space-x-2.5">
-            <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <div>
-              <span className="text-xs font-bold text-cyan-300 block">SUPER ADMIN QUICK LOGIN</span>
-              <span className="text-[11px] font-mono text-slate-400">{SUPER_ADMIN_EMAIL}</span>
-            </div>
-          </div>
-          <span className="text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded border border-cyan-500/40 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-all">
-            FILL (aaaa)
-          </span>
-        </div>
-
         {/* Tab Switcher */}
         <div className="flex bg-slate-950 p-1 rounded-xl mb-6 border border-slate-800">
           <button
             onClick={() => { setActiveTab('login'); setError(null); }}
-            className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
+            className={`flex-1 py-2.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
               activeTab === 'login'
                 ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                 : 'text-slate-400 hover:text-slate-200'
@@ -198,7 +170,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
           </button>
           <button
             onClick={() => { setActiveTab('register'); setError(null); }}
-            className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
+            className={`flex-1 py-2.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
               activeTab === 'register'
                 ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                 : 'text-slate-400 hover:text-slate-200'
@@ -228,7 +200,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Senthil Akilan"
+                  placeholder="Officer / Operator Name"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all"
                 />
               </div>
@@ -244,7 +216,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="senthilakilan47@gmail.com"
+                placeholder="operator@police.tn.gov.in"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all font-mono"
               />
             </div>
@@ -325,11 +297,6 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
           </svg>
           <span>CONTINUE WITH GOOGLE (OAUTH)</span>
         </button>
-
-        {/* Footer Note */}
-        <p className="mt-6 text-[10px] text-center text-slate-500 font-mono">
-          Super Admin: <span className="text-cyan-400">senthilakilan47@gmail.com</span> (pwd: <span className="text-cyan-400">aaaa</span>)
-        </p>
       </div>
     </div>
   );

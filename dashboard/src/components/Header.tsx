@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck } from 'lucide-react';
+import { Shield, Activity, Radio, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck, Sliders } from 'lucide-react';
 import { Case } from '../types';
 import { UserSession } from './DashboardAuthScreen';
 
@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenAuditLog: () => void;
   onOpenSimulator: () => void;
   onClearAllRecords: () => void;
+  onOpenSuperAdminModal?: () => void;
   session?: UserSession | null;
   onLogout?: () => void;
 }
@@ -19,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuditLog,
   onOpenSimulator,
   onClearAllRecords,
+  onOpenSuperAdminModal,
   session,
   onLogout
 }) => {
@@ -98,6 +100,17 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
           </div>
+        )}
+
+        {/* Super Admin Governance Console Button */}
+        {session?.isSuperAdmin && onOpenSuperAdminModal && (
+          <button
+            onClick={onOpenSuperAdminModal}
+            className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono shadow-md shadow-amber-950/50 font-bold animate-pulse"
+          >
+            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+            <span>ADMIN CONSOLE</span>
+          </button>
         )}
 
         <button
