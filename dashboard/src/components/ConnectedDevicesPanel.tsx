@@ -48,29 +48,22 @@ export const ConnectedDevicesPanel: React.FC<ConnectedDevicesPanelProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
-          {onClearAll && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClearAll();
-              }}
-              className="bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/60 text-[11px] px-2.5 py-1 rounded flex items-center space-x-1 font-mono transition-all font-bold"
-            >
-              <span>ERASE ALL</span>
-            </button>
-          )}
-
           <button
             onClick={(e) => {
               e.stopPropagation();
               handlePingDevices();
             }}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] px-2.5 py-1 rounded flex items-center space-x-1 font-mono transition-all"
+            className="h-7 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs px-3 rounded-lg inline-flex items-center space-x-1.5 font-mono transition-all font-semibold"
           >
-            <RefreshCw className="w-3 h-3 text-cyan-400" />
+            <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
             <span>VERIFY NODES</span>
           </button>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
         </div>
       </div>
 
