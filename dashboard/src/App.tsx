@@ -124,7 +124,12 @@ export function App() {
               setSelectedCaseId((prev) => prev || msg.payload.cases[0].id);
             }
           } else if (msg.type === 'CASE_CREATED') {
-            setCases(prev => [msg.payload, ...prev]);
+            setCases(prev => {
+              if (prev.some(c => c.id === msg.payload.id)) {
+                return prev.map(c => c.id === msg.payload.id ? msg.payload : c);
+              }
+              return [msg.payload, ...prev];
+            });
             setSelectedCaseId(msg.payload.id);
           } else if (msg.type === 'CASE_UPDATED') {
             setCases(prev => prev.map(c => c.id === msg.payload.id ? msg.payload : c));

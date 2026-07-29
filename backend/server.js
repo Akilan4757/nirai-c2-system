@@ -285,32 +285,43 @@ app.post('/v1/auth/otp/verify', (req, res) => {
 
 // Raise SOS (Civilian Mode trigger)
 app.post('/v1/sos', (req, res) => {
-  const { lat, lng, address, reporterName, reporterPhone, mediaUrl, reporterPhotoUrl } = req.body;
+  const { caseId: reqCaseId, lat, lng, address, reporterName, reporterPhone, mediaUrl, reporterPhotoUrl } = req.body;
+  const targetId = reqCaseId || `case-${Date.now().toString().slice(-4)}`;
 
-  const newCase = {
-    id: `case-${Date.now().toString().slice(-4)}`,
-    reporterUserId: 'usr-c1',
-    reporterName: reporterName || 'Anonymous Citizen',
-    reporterPhone: reporterPhone || '+919000000000',
-    status: 'raised',
-    location: {
-      lat: lat ? parseFloat(lat) : 13.085 + (Math.random() - 0.5) * 0.02,
-      lng: lng ? parseFloat(lng) : 80.275 + (Math.random() - 0.5) * 0.02
-    },
-    address: address || 'Mount Road near Anna Flyover, Chennai',
-    severityScore: 5,
-    createdAt: new Date().toISOString(),
-    assignedOfficerUserId: null,
-    assignedOfficerName: null,
-    etaSeconds: null,
-    droneId: null,
-    verificationNotes: 'Pending operator verification call.',
-    mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
-    reporterPhotoUrl: reporterPhotoUrl || null,
-    cancelledBy: null
-  };
+  let newCase = state.cases.find(c => c.id === targetId);
+  if (!newCase) {
+    newCase = {
+      id: targetId,
+      reporterUserId: 'usr-c1',
+      reporterName: reporterName || 'Anonymous Citizen',
+      reporterPhone: reporterPhone || '+919876543210',
+      status: 'raised',
+      location: {
+        lat: lat ? parseFloat(lat) : 13.085 + (Math.random() - 0.5) * 0.02,
+        lng: lng ? parseFloat(lng) : 80.275 + (Math.random() - 0.5) * 0.02
+      },
+      address: address || 'Mount Road near Anna Flyover, Chennai',
+      severityScore: 5,
+      createdAt: new Date().toISOString(),
+      assignedOfficerUserId: null,
+      assignedOfficerName: null,
+      etaSeconds: null,
+      droneId: null,
+      verificationNotes: 'Pending operator verification call.',
+      mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
+      reporterPhotoUrl: reporterPhotoUrl || null,
+      cancelledBy: null
+    };
+    state.cases.unshift(newCase);
+  } else {
+    newCase.location = {
+      lat: lat ? parseFloat(lat) : newCase.location.lat,
+      lng: lng ? parseFloat(lng) : newCase.location.lng
+    };
+    if (address) newCase.address = address;
+    if (reporterPhotoUrl) newCase.reporterPhotoUrl = reporterPhotoUrl;
+  }
 
-  state.cases.unshift(newCase);
   logAudit('SOS_TRIGGERED', newCase.reporterName, newCase.id);
   broadcast('CASE_CREATED', newCase);
   syncToFirebase('cases', newCase.id, newCase);

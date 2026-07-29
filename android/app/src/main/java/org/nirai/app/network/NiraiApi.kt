@@ -42,6 +42,7 @@ object NiraiApi {
             }
             val body = """
                 {
+                    "caseId": "$caseId",
                     "lat": $lat,
                     "lng": $lng,
                     "reporterName": "$reporterName",

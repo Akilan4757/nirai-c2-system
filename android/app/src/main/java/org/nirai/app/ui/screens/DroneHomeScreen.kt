@@ -32,6 +32,9 @@ import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
 import org.nirai.app.ui.components.CameraStreamView
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 @Composable
 fun DroneHomeScreen() {
     val context = LocalContext.current
@@ -102,6 +105,7 @@ fun DroneHomeScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF020617))
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         // Drone HUD Top Card
@@ -216,7 +220,7 @@ fun DroneHomeScreen() {
         CameraStreamView(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .height(240.dp),
             nodeLabel = "RECON DRONE CAMERA (DRONE-C1)"
         )
 
