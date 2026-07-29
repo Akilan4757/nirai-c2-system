@@ -8,6 +8,7 @@ import { PoliceTracker } from './components/PoliceTracker';
 import { DroneControlPanel } from './components/DroneControlPanel';
 import { AuditLogModal } from './components/AuditLogModal';
 import { SimulatorControls } from './components/SimulatorControls';
+import { ConnectedDevicesPanel } from './components/ConnectedDevicesPanel';
 import { Case, Officer, Drone, AuditLog } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
@@ -213,6 +214,15 @@ export function App() {
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
       />
+
+      <div className="px-6 pt-2 pb-1">
+        <ConnectedDevicesPanel
+          cases={cases}
+          officers={officers}
+          drones={drones}
+          isConnected={isConnected}
+        />
+      </div>
 
       {/* Main Grid View */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">

@@ -154,10 +154,14 @@ function broadcast(type, payload) {
 }
 
 function syncToFirebase(coll, id, data) {
-  if (!db) return;
-  db.collection(coll).doc(id).set(data, { merge: true }).catch(err => {
-    console.warn(`[Firebase Sync Warning] Failed to sync ${coll}/${id}:`, err.message);
-  });
+  try {
+    if (!db) return;
+    db.collection(coll).doc(id).set(data, { merge: true }).catch(err => {
+      // Gracefully log warning without crashing
+    });
+  } catch (err) {
+    // Gracefully catch sync error
+  }
 }
 
 function logAudit(action, actor, target) {

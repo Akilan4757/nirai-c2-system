@@ -1,5 +1,12 @@
 package org.nirai.app.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Bundle
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,9 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
@@ -23,16 +32,53 @@ import org.nirai.app.utils.SmsFallbackManager
 
 @Composable
 fun CivilianHomeScreen() {
+    val context = LocalContext.current
     var isCountdownActive by remember { mutableStateOf(false) }
     var countdownSeconds by remember { mutableStateOf(5) }
     var isSosTriggered by remember { mutableStateOf(false) }
     var sosStatus by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
-    // Simulated GPS coords — in production, use FusedLocationProviderClient
-    val currentLat = 13.0604
-    val currentLng = 80.2496
-    val currentAddress = "Mount Road near Anna Flyover, Chennai"
+    // Real Native Device GPS Coordinates
+    var currentLat by remember { mutableStateOf(13.0827) }
+    var currentLng by remember { mutableStateOf(80.2707) }
+    var currentAddress by remember { mutableStateOf("Fetching real GPS location...") }
+
+    DisposableEffect(Unit) {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val locationListener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                currentLat = location.latitude
+                currentLng = location.longitude
+                currentAddress = "GPS: ${String.format("%.4f", location.latitude)} N, ${String.format("%.4f", location.longitude)} E"
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        }
+
+        try {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 1f, locationListener)
+                locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000L, 1f, locationListener)
+                val lastGps = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                if (lastGps != null) {
+                    currentLat = lastGps.latitude
+                    currentLng = lastGps.longitude
+                    currentAddress = "GPS: ${String.format("%.4f", lastGps.latitude)} N, ${String.format("%.4f", lastGps.longitude)} E"
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        onDispose {
+            try {
+                locationManager?.removeUpdates(locationListener)
+            } catch (e: Exception) {}
+        }
+    }
 
     LaunchedEffect(isCountdownActive) {
         if (isCountdownActive) {
@@ -86,7 +132,7 @@ fun CivilianHomeScreen() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "GPS LOCATION STATUS",
+                    text = "REAL DEVICE GPS LOCATION",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF94A3B8)
@@ -99,7 +145,7 @@ fun CivilianHomeScreen() {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Proximity Broadcast: OPTED-IN (300m Active Mesh)",
+                    text = "Proximity Broadcast: OPTED-IN (${currentLat.toString().take(6)}, ${currentLng.toString().take(6)})",
                     fontSize = 11.sp,
                     color = Color(0xFF10B981)
                 )
@@ -207,8 +253,8 @@ fun CivilianHomeScreen() {
                             fontSize = 13.sp,
                             color = Color.White
                         )
-                        Text(text = "Estimated Arrival: Calculating...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
-                        Text(text = "Control Room notified via WebSocket", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Text(text = "Target GPS: $currentLat, $currentLng", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(text = "Control Room notified via WebSocket & REST", fontSize = 12.sp, color = Color(0xFF94A3B8))
                     }
                 }
             } else {
