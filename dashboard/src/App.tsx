@@ -37,12 +37,33 @@ export function App() {
       const casesQuery = query(collection(db, 'cases'));
       unsubscribeCases = onSnapshot(casesQuery, (snapshot) => {
         if (!snapshot.empty) {
-          const fbCases: Case[] = snapshot.docs.map(doc => doc.data() as Case);
+          const fbCases: Case[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: data.id || doc.id,
+              reporterUserId: data.reporterUserId || 'usr-mobile',
+              reporterName: data.reporterName || 'Civilian User',
+              reporterPhone: data.reporterPhone || '+919876543210',
+              status: data.status || 'raised',
+              location: data.location || { lat: 13.0875, lng: 80.2790 },
+              address: data.address || 'Emergency SOS Location',
+              severityScore: data.severityScore || 5,
+              createdAt: data.createdAt || new Date().toISOString(),
+              assignedOfficerUserId: data.assignedOfficerUserId || null,
+              assignedOfficerName: data.assignedOfficerName || null,
+              etaSeconds: data.etaSeconds || null,
+              droneId: data.droneId || null,
+              verificationNotes: data.verificationNotes || 'Pending operator verification call.',
+              mediaUrl: data.mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60'
+            } as Case;
+          });
           setCases(prev => {
             const mergedMap = new Map<string, Case>();
             prev.forEach(c => mergedMap.set(c.id, c));
             fbCases.forEach(c => mergedMap.set(c.id, c));
-            return Array.from(mergedMap.values());
+            const result = Array.from(mergedMap.values());
+            if (result.length > 0) setSelectedCaseId(prev => prev || result[0].id);
+            return result;
           });
         }
       }, (err) => console.warn('Firebase Cases Sync Warning:', err.message));
