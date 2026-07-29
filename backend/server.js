@@ -153,15 +153,42 @@ function broadcast(type, payload) {
   });
 }
 
+function objectToFirestoreFields(obj) {
+  const fields = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val === null || val === undefined) continue;
+    if (typeof val === 'string') fields[key] = { stringValue: val };
+    else if (typeof val === 'number') fields[key] = Number.isInteger(val) ? { integerValue: val.toString() } : { doubleValue: val };
+    else if (typeof val === 'boolean') fields[key] = { booleanValue: val };
+    else if (typeof val === 'object' && !Array.isArray(val)) fields[key] = { mapValue: { fields: objectToFirestoreFields(val) } };
+  }
+  return fields;
+}
+
 function syncToFirebase(coll, id, data) {
   try {
-    if (!db) return;
-    db.collection(coll).doc(id).set(data, { merge: true }).catch(err => {
-      // Gracefully log warning without crashing
-    });
-  } catch (err) {
-    // Gracefully catch sync error
-  }
+    const apiKey = 'AIzaSyBKYowgbbyApg-jbjJUwXQh69DHtxKJUvU';
+    const projectId = 'siteon-47a8f';
+    const fields = objectToFirestoreFields(data);
+
+    fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${coll}/${id}?key=${apiKey}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    }).then(res => {
+      if (res.status === 404) {
+        fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${coll}?key=${apiKey}&documentId=${id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields })
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
+    if (db) {
+      db.collection(coll).doc(id).set(data, { merge: true }).catch(() => {});
+    }
+  } catch (err) {}
 }
 
 function logAudit(action, actor, target) {
@@ -282,6 +309,7 @@ app.post('/v1/sos', (req, res) => {
   state.cases.unshift(newCase);
   logAudit('SOS_TRIGGERED', newCase.reporterName, newCase.id);
   broadcast('CASE_CREATED', newCase);
+  syncToFirebase('cases', newCase.id, newCase);
 
   res.status(201).json({ success: true, case: newCase });
 });
