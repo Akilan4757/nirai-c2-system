@@ -148,7 +148,7 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
 
       {/* Human-in-the-Loop "Confirm Dispatch" Modal */}
       {dispatchModalCaseId && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[2000] p-4">
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[9999] p-4">
           <div className="bg-slate-900 border border-cyan-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
             <div className="flex items-center space-x-3 border-b border-slate-800 pb-3">
               <div className="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">

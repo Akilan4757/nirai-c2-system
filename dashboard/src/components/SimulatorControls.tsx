@@ -27,7 +27,7 @@ export const SimulatorControls: React.FC<SimulatorControlsProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[3000] p-4">
+    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[9999] p-4">
       <div className="bg-slate-900 border border-indigo-500/40 rounded-2xl max-w-md w-full shadow-2xl space-y-4 p-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-2">
