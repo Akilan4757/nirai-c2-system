@@ -235,6 +235,7 @@ export function App() {
           officers={officers}
           drones={drones}
           isConnected={isConnected}
+          onClearAll={handleClearAllRecords}
         />
       </div>
 

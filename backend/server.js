@@ -518,17 +518,24 @@ app.post('/v1/drones/telemetry', (req, res) => {
   res.json({ success: true, drone });
 });
 
-// Clear All Active Records Endpoint
+// Erase All Data & Hardware Reset Endpoint
 app.post('/v1/cases/clear-all', (req, res) => {
   state.cases = [];
   state.auditLogs = [];
+  state.drones.forEach(d => {
+    d.status = 'docked';
+    d.altitudeMeters = 0;
+    d.speedKmh = 0;
+    d.location = { lat: 13.0827, lng: 80.2707 };
+  });
   broadcast('INITIAL_STATE', {
     cases: state.cases,
     officers: state.officers,
     drones: state.drones,
     auditLogs: state.auditLogs
   });
-  res.json({ success: true, message: 'All active records cleared successfully.' });
+  logAudit('ERASE_ALL_DATA', 'operator-c2', 'ALL_SYSTEMS');
+  res.json({ success: true, message: 'All active records erased and hardware nodes reset.' });
 });
 
 // Recall Specific Drone

@@ -70,11 +70,11 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <span className="text-xs text-slate-400 block font-mono">GATEWAY STATUS</span>
             <div className="flex items-center space-x-1">
-              <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                {isConnected ? 'LIVE WS' : 'OFFLINE'}
+              <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                {isConnected ? 'LIVE WS' : 'WS CONNECTING'}
               </span>
-              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                FIREBASE (siteon-47a8f)
+              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                FIREBASE ONLINE
               </span>
             </div>
           </div>
@@ -85,10 +85,10 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center space-x-3">
         <button
           onClick={onClearAllRecords}
-          className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono"
+          className="bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/60 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all font-mono shadow-lg shadow-rose-900/30 font-bold"
         >
           <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-          <span>CLEAR ALL RECORDS</span>
+          <span>ERASE ALL DATA</span>
         </button>
 
         <button

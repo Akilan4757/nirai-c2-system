@@ -7,13 +7,15 @@ interface ConnectedDevicesPanelProps {
   officers: Officer[];
   drones: Drone[];
   isConnected: boolean;
+  onClearAll?: () => void;
 }
 
 export const ConnectedDevicesPanel: React.FC<ConnectedDevicesPanelProps> = ({
   cases,
   officers,
   drones,
-  isConnected
+  isConnected,
+  onClearAll
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
@@ -46,6 +48,18 @@ export const ConnectedDevicesPanel: React.FC<ConnectedDevicesPanelProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
+          {onClearAll && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearAll();
+              }}
+              className="bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/60 text-[11px] px-2.5 py-1 rounded flex items-center space-x-1 font-mono transition-all font-bold"
+            >
+              <span>ERASE ALL</span>
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
