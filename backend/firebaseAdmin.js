@@ -1,25 +1,24 @@
-import admin from 'firebase-admin';
-
-const firebaseAdmin = admin.default || admin;
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 let dbInstance = null;
-let rtdbInstance = null;
 
-try {
-  const apps = firebaseAdmin.apps || (firebaseAdmin.default && firebaseAdmin.default.apps) || [];
-  if (!apps.length) {
-    firebaseAdmin.initializeApp({
-      projectId: 'siteon-47a8f',
-      databaseURL: 'https://siteon-47a8f-default-rtdb.asia-southeast1.firebasedatabase.app'
-    });
-    console.log('[NIRAI Firebase Admin] Initialized successfully for siteon-47a8f');
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_CONFIG || process.env.NODE_ENV === 'production') {
+  try {
+    const apps = getApps();
+    if (!apps.length) {
+      initializeApp({
+        projectId: 'siteon-47a8f'
+      });
+      console.log('[NIRAI Firebase Admin] Initialized successfully for siteon-47a8f');
+    }
+    dbInstance = getFirestore();
+  } catch (err) {
+    console.warn('[NIRAI Firebase Admin] Init skipped:', err.message);
   }
-  dbInstance = firebaseAdmin.firestore();
-  rtdbInstance = firebaseAdmin.database ? firebaseAdmin.database() : null;
-} catch (err) {
-  console.warn('[NIRAI Firebase Admin] Init warning:', err.message);
+} else {
+  console.log('[NIRAI Firebase Admin] Running in local dev mode (WebSocket & REST active)');
 }
 
 export const db = dbInstance;
-export const rtdb = rtdbInstance;
-export default firebaseAdmin;
+export default dbInstance;
