@@ -29,6 +29,8 @@ export interface Case {
   droneId: string | null;
   verificationNotes?: string;
   mediaUrl?: string;
+  reporterPhotoUrl?: string | null;
+  cancelledBy?: string | null;
 }
 
 export interface Officer {

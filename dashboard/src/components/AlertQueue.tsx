@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, Clock, MapPin, User, CheckCircle, Send, PhoneCall } from 'lucide-react';
+import { AlertCircle, Clock, MapPin, User, CheckCircle, Send, PhoneCall, XCircle } from 'lucide-react';
 import { Case } from '../types';
 
 interface AlertQueueProps {
@@ -8,6 +8,7 @@ interface AlertQueueProps {
   onSelectCase: (caseId: string) => void;
   onVerifyCase: (caseId: string, isFalseAlarm: boolean) => void;
   onOpenDispatchModal: (caseId: string) => void;
+  onCancelCase?: (caseId: string) => void;
 }
 
 export const AlertQueue: React.FC<AlertQueueProps> = ({
@@ -16,6 +17,7 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
   onSelectCase,
   onVerifyCase,
   onOpenDispatchModal,
+  onCancelCase,
 }) => {
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
 
@@ -74,7 +76,15 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
                 {/* Reporter & Location */}
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center text-slate-200 font-medium">
-                    <User className="w-3.5 h-3.5 text-slate-400 mr-1.5 flex-shrink-0" />
+                    {c.reporterPhotoUrl ? (
+                      <img
+                        src={c.reporterPhotoUrl}
+                        alt={c.reporterName}
+                        className="w-6 h-6 rounded-full mr-2 object-cover border border-slate-600"
+                      />
+                    ) : (
+                      <User className="w-3.5 h-3.5 text-slate-400 mr-1.5 flex-shrink-0" />
+                    )}
                     <span>{c.reporterName}</span>
                     <span className="text-slate-500 text-[11px] ml-1">({c.reporterPhone})</span>
                   </div>
@@ -104,6 +114,20 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
                     >
                       <PhoneCall className="w-3 h-3" />
                       <span>VERIFY CALL</span>
+                    </button>
+                  )}
+
+                  {/* Cancel Case Button */}
+                  {onCancelCase && c.status !== 'resolved' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCancelCase(c.id);
+                      }}
+                      className="bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-[11px] px-2.5 py-1 rounded flex items-center space-x-1 font-mono transition-all"
+                    >
+                      <XCircle className="w-3 h-3" />
+                      <span>CANCEL</span>
                     </button>
                   )}
 

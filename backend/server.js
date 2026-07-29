@@ -106,7 +106,9 @@ const state = {
       etaSeconds: 240,
       droneId: null,
       verificationNotes: 'Call-back initiated by Operator #4. Reporter confirmed distress.',
-      mediaUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60'
+      mediaUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
+      reporterPhotoUrl: null,
+      cancelledBy: null
     }
   ],
   auditLogs: [
@@ -283,7 +285,7 @@ app.post('/v1/auth/otp/verify', (req, res) => {
 
 // Raise SOS (Civilian Mode trigger)
 app.post('/v1/sos', (req, res) => {
-  const { lat, lng, address, reporterName, reporterPhone, mediaUrl } = req.body;
+  const { lat, lng, address, reporterName, reporterPhone, mediaUrl, reporterPhotoUrl } = req.body;
 
   const newCase = {
     id: `case-${Date.now().toString().slice(-4)}`,
@@ -303,7 +305,9 @@ app.post('/v1/sos', (req, res) => {
     etaSeconds: null,
     droneId: null,
     verificationNotes: 'Pending operator verification call.',
-    mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60'
+    mediaUrl: mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
+    reporterPhotoUrl: reporterPhotoUrl || null,
+    cancelledBy: null
   };
 
   state.cases.unshift(newCase);
@@ -311,7 +315,7 @@ app.post('/v1/sos', (req, res) => {
   broadcast('CASE_CREATED', newCase);
   syncToFirebase('cases', newCase.id, newCase);
 
-  res.status(201).json({ success: true, case: newCase });
+  res.status(201).json({ success: true, case: newCase, caseId: newCase.id });
 });
 
 // Get Active Cases
@@ -419,6 +423,42 @@ app.post('/v1/cases/:id/dispatch-drone', (req, res) => {
   startSimulatedDroneFlight(caseItem, mother, child1);
 
   res.json({ success: true, case: caseItem, mother, child1 });
+});
+
+// Cancel Case (Civilian / Operator)
+app.post('/v1/cases/:id/cancel', (req, res) => {
+  const { id } = req.params;
+  const { cancelledBy } = req.body;
+  const caseItem = state.cases.find(c => c.id === id);
+  if (!caseItem) return res.status(404).json({ error: 'Case not found' });
+  if (caseItem.status === 'resolved' || caseItem.status === 'false_alarm') {
+    return res.status(400).json({ error: 'Case already closed' });
+  }
+
+  caseItem.status = 'false_alarm';
+  caseItem.cancelledBy = cancelledBy || 'civilian';
+  caseItem.verificationNotes = `Cancelled by ${cancelledBy || 'civilian'} at ${new Date().toISOString()}`;
+
+  if (flightIntervals.has(id)) {
+    clearInterval(flightIntervals.get(id));
+    flightIntervals.delete(id);
+  }
+
+  state.drones.forEach(d => {
+    if (d.id === caseItem.droneId || d.parentMotherId === caseItem.droneId) {
+      d.status = 'docked';
+      d.altitudeMeters = 0;
+      d.speedKmh = 0;
+      if (d.homeLocation) d.location = { ...d.homeLocation };
+    }
+  });
+
+  logAudit('CASE_CANCELLED', cancelledBy || 'civilian', id);
+  broadcast('CASE_UPDATED', caseItem);
+  broadcast('DRONES_UPDATED', state.drones);
+  syncToFirebase('cases', caseItem.id, caseItem);
+
+  res.json({ success: true, case: caseItem });
 });
 
 // Resolve Case

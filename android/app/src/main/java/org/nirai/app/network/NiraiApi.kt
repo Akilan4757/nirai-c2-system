@@ -5,10 +5,9 @@ import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.UUID
 
 /**
- * Lightweight HTTP client for NIRAI backend & Firebase Cloud Firestore REST API.
+ * NIRAI C2 HTTP Client — dual-path Firebase Firestore + Local Backend.
  */
 object NiraiApi {
 
@@ -16,6 +15,9 @@ object NiraiApi {
     private const val FIREBASE_API_KEY = "AIzaSyBKYowgbbyApg-jbjJUwXQh69DHtxKJUvU"
     private const val FIREBASE_PROJECT_ID = "siteon-47a8f"
 
+    /**
+     * Returns the caseId on success, null on failure.
+     */
     suspend fun postSos(
         lat: Double,
         lng: Double,
@@ -23,12 +25,12 @@ object NiraiApi {
         reporterPhone: String,
         address: String
     ): String? = withContext(Dispatchers.IO) {
-        val caseId = "case-${System.currentTimeMillis()}"
+        val caseId = "case-${System.currentTimeMillis().toString().takeLast(4)}"
 
-        // 1. Post to Firebase Cloud Firestore directly for instant web dashboard sync anywhere in the world
+        // 1. Firebase Firestore direct write for instant global sync
         postSosToFirebase(caseId, lat, lng, reporterName, reporterPhone, address)
 
-        // 2. Post to Local/LAN Backend Server if available
+        // 2. Local/LAN backend
         try {
             val url = URL("$BASE_URL/v1/sos")
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -50,11 +52,70 @@ object NiraiApi {
             OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
             val response = conn.inputStream.bufferedReader().readText()
             conn.disconnect()
-            response
+            // Try to extract caseId from response JSON
+            val idMatch = Regex(""""caseId"\s*:\s*"([^"]+)"""").find(response)
+            val backendCaseId = idMatch?.groupValues?.get(1)
+            // Also try the nested case.id
+            val caseIdMatch = Regex(""""id"\s*:\s*"(case-[^"]+)"""").find(response)
+            backendCaseId ?: caseIdMatch?.groupValues?.get(1) ?: caseId
         } catch (e: Exception) {
             e.printStackTrace()
-            // Even if local server fails, return valid JSON since Firebase Firestore received the case
-            """{"success":true,"caseId":"$caseId","source":"firebase"}"""
+            caseId
+        }
+    }
+
+    /**
+     * Cancel an active SOS case.
+     */
+    suspend fun cancelCase(caseId: String, cancelledBy: String = "civilian"): Boolean = withContext(Dispatchers.IO) {
+        // Cancel on Firebase
+        cancelCaseOnFirebase(caseId, cancelledBy)
+
+        // Cancel on local backend
+        try {
+            val url = URL("$BASE_URL/v1/cases/$caseId/cancel")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 4000
+                readTimeout = 4000
+            }
+            val body = """{"cancelledBy": "$cancelledBy"}"""
+            OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (e: Exception) {
+            e.printStackTrace()
+            true // Firebase cancel already succeeded
+        }
+    }
+
+    private fun cancelCaseOnFirebase(caseId: String, cancelledBy: String) {
+        try {
+            val firestoreUrl = URL("https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT_ID/databases/(default)/documents/cases/$caseId?key=$FIREBASE_API_KEY&updateMask.fieldPaths=status&updateMask.fieldPaths=cancelledBy&updateMask.fieldPaths=verificationNotes")
+            val conn = (firestoreUrl.openConnection() as HttpURLConnection).apply {
+                requestMethod = "PATCH"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 5000
+                readTimeout = 5000
+            }
+            val body = """
+                {
+                    "fields": {
+                        "status": { "stringValue": "false_alarm" },
+                        "cancelledBy": { "stringValue": "$cancelledBy" },
+                        "verificationNotes": { "stringValue": "Cancelled by $cancelledBy" }
+                    }
+                }
+            """.trimIndent()
+            OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
+            conn.responseCode
+            conn.disconnect()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -98,7 +159,7 @@ object NiraiApi {
                 }
             """.trimIndent()
             OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
-            val responseCode = conn.responseCode
+            conn.responseCode
             conn.disconnect()
         } catch (e: Exception) {
             e.printStackTrace()

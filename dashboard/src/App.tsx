@@ -247,6 +247,16 @@ export function App() {
     }
   };
 
+  const handleCancelCase = (caseId: string) => {
+    if (window.confirm(`Cancel case ${caseId}? This will mark it as false alarm and recall any dispatched units.`)) {
+      fetch(`${API_BASE}/v1/cases/${caseId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelledBy: 'operator-c2' })
+      }).catch(() => {});
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950">
       <Header
@@ -277,6 +287,7 @@ export function App() {
             onSelectCase={(id) => setSelectedCaseId(id)}
             onVerifyCase={handleVerifyCase}
             onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
+            onCancelCase={handleCancelCase}
           />
         </div>
 
