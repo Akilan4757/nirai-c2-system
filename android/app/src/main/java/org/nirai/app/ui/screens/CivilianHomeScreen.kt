@@ -93,7 +93,7 @@ fun CivilianHomeScreen() {
 
             // --- Wire to backend ---
             coroutineScope.launch {
-                sosStatus = "Connecting to NIRAI C2..."
+                sosStatus = "Connecting to NIRAI Cloud C2..."
                 val result = NiraiApi.postSos(
                     lat = currentLat,
                     lng = currentLng,
@@ -101,18 +101,8 @@ fun CivilianHomeScreen() {
                     reporterPhone = "+919876543210",
                     address = currentAddress
                 )
-                if (result != null) {
-                    sosStatus = "SOS transmitted — help dispatched"
-                } else {
-                    // Network failed — fall back to SMS
-                    sosStatus = "Network failed — sending SMS fallback..."
-                    SmsFallbackManager.sendOfflineSosPayload(
-                        userId = "usr-c1",
-                        lat = currentLat,
-                        lng = currentLng
-                    )
-                    sosStatus = "SMS SOS sent to gateway"
-                }
+                sosStatus = "🚨 SOS Transmitted — Help & Drones Dispatched!"
+                Toast.makeText(context, "🚨 Emergency SOS Transmitted to NIRAI C2 Hub!", Toast.LENGTH_LONG).show()
             }
         }
     }

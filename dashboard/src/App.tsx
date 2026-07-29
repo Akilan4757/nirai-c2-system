@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Header } from './components/Header';
 import { LiveMap } from './components/LiveMap';
@@ -227,16 +227,23 @@ export function App() {
     });
   };
 
-  const handleClearAllRecords = () => {
-    if (window.confirm('Are you sure you want to clear all active SOS cases and audit records?')) {
-      fetch(`${API_BASE}/v1/cases/clear-all`, { method: 'POST' })
-        .then(res => res.json())
-        .then(() => {
-          setCases([]);
-          setAuditLogs([]);
-          setSelectedCaseId(null);
-        })
-        .catch(console.error);
+  const handleClearAllRecords = async () => {
+    if (window.confirm('Are you sure you want to ERASE ALL active cases, audit logs, and hardware telemetry from both Cloud Firestore and local server?')) {
+      setCases([]);
+      setAuditLogs([]);
+      setSelectedCaseId(null);
+
+      try {
+        const casesSnap = await getDocs(collection(db, 'cases'));
+        casesSnap.forEach(d => deleteDoc(doc(db, 'cases', d.id)));
+
+        const auditSnap = await getDocs(collection(db, 'auditLogs'));
+        auditSnap.forEach(d => deleteDoc(doc(db, 'auditLogs', d.id)));
+      } catch (err) {
+        console.warn('Firestore purge warning:', err);
+      }
+
+      fetch(`${API_BASE}/v1/cases/clear-all`, { method: 'POST' }).catch(() => {});
     }
   };
 
