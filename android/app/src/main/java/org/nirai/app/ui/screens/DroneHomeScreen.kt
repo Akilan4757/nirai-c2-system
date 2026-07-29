@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
+import org.nirai.app.ui.components.CameraStreamView
 
 @Composable
 fun DroneHomeScreen() {
@@ -146,40 +147,13 @@ fun DroneHomeScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Simulated Optical Feed HUD Window
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-            shape = RoundedCornerShape(16.dp),
+        // Hardware Camera Stream View
+        CameraStreamView(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .border(1.dp, Color(0xFF334155), RoundedCornerShape(16.dp))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // HUD Reticle Overlay
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "[ OPTICAL RECON HUD ACTIVE ]", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        color = Color.Transparent,
-                        modifier = Modifier
-                            .size(120.dp)
-                            .border(2.dp, Color(0xFF06B6D4).copy(alpha = 0.6f), CircleShape)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(text = "TARGET LOCK\n300m MESH", fontSize = 10.sp, color = Color(0xFF10B981))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(text = "Live Stream Broadcast → C2 Dashboard (siteon-47a8f)", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                }
-            }
-        }
+                .weight(1f),
+            nodeLabel = "RECON DRONE CAMERA (DRONE-C1)"
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 

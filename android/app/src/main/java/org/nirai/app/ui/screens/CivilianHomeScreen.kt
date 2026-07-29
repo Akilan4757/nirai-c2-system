@@ -28,6 +28,7 @@ import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
+import org.nirai.app.ui.components.CameraStreamView
 import org.nirai.app.utils.SmsFallbackManager
 
 @Composable
@@ -242,7 +243,7 @@ fun CivilianHomeScreen() {
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "ACTIVE DISPATCH TELEMETRY",
+                            text = "ACTIVE DISPATCH & LIVE CAMERA STREAM",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF38BDF8)
@@ -254,7 +255,13 @@ fun CivilianHomeScreen() {
                             color = Color.White
                         )
                         Text(text = "Target GPS: $currentLat, $currentLng", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
-                        Text(text = "Control Room notified via WebSocket & REST", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Camera Stream Box
+                        CameraStreamView(
+                            modifier = Modifier.fillMaxWidth().height(160.dp),
+                            nodeLabel = "CIVILIAN SOS EMERGENCY CAMERA"
+                        )
                     }
                 }
             } else {
