@@ -66,17 +66,12 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="bg-slate-950/80 px-4 py-1.5 rounded-lg border border-slate-800 flex items-center space-x-3">
-          <Activity className="w-4 h-4 text-cyan-400" />
+          <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
           <div>
             <span className="text-xs text-slate-400 block font-mono">GATEWAY STATUS</span>
-            <div className="flex items-center space-x-1">
-              <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono ${isConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                {isConnected ? 'LIVE WS' : 'WS CONNECTING'}
-              </span>
-              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                FIREBASE ONLINE
-              </span>
-            </div>
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_#10b981]">
+              {isConnected ? 'ONLINE (WS + FIREBASE)' : 'ONLINE (FIREBASE)'}
+            </span>
           </div>
         </div>
       </div>
