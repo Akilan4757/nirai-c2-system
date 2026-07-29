@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Header } from './components/Header';
 import { LiveMap } from './components/LiveMap';
@@ -208,10 +208,20 @@ export function App() {
     setDispatchModalCaseId(null);
   };
 
-  const handleResolveCase = (caseId: string) => {
+  const handleResolveCase = async (caseId: string) => {
+    setCases(prev => prev.filter(c => c.id !== caseId));
+
+    try {
+      await updateDoc(doc(db, 'cases', caseId), { status: 'resolved' });
+    } catch (err) {
+      try {
+        await deleteDoc(doc(db, 'cases', caseId));
+      } catch (e) {}
+    }
+
     fetch(`${API_BASE}/v1/cases/${caseId}/resolve`, {
       method: 'POST'
-    });
+    }).catch(() => {});
   };
 
   const handleTriggerSOS = (reporterName: string, address: string, lat: number, lng: number) => {
@@ -219,7 +229,7 @@ export function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reporterName, address, lat, lng })
-    });
+    }).catch(() => {});
   };
 
   const handleSimulateOfficerMove = () => {
@@ -229,7 +239,7 @@ export function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: 'usr-p1', lat, lng, onDuty: true })
-    });
+    }).catch(() => {});
   };
 
   const handleClearAllRecords = async () => {
@@ -252,8 +262,18 @@ export function App() {
     }
   };
 
-  const handleCancelCase = (caseId: string) => {
+  const handleCancelCase = async (caseId: string) => {
     if (window.confirm(`Cancel case ${caseId}? This will mark it as false alarm and recall any dispatched units.`)) {
+      setCases(prev => prev.filter(c => c.id !== caseId));
+
+      try {
+        await deleteDoc(doc(db, 'cases', caseId));
+      } catch (err) {
+        try {
+          await setDoc(doc(db, 'cases', caseId), { status: 'false_alarm', cancelledBy: 'operator-c2' }, { merge: true });
+        } catch (e) {}
+      }
+
       fetch(`${API_BASE}/v1/cases/${caseId}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
