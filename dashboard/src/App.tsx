@@ -150,6 +150,8 @@ export function App() {
             setOfficers(prev => prev.map(o => o.userId === msg.payload.userId ? msg.payload : o));
           } else if (msg.type === 'DRONES_UPDATED') {
             setDrones(msg.payload);
+          } else if (msg.type === 'DRONE_FRAME_UPDATED') {
+            setDrones(prev => prev.map(d => d.id === msg.payload.droneId ? { ...d, streamUrl: msg.payload.streamUrl } : d));
           } else if (msg.type === 'DRONE_TELEMETRY_STREAM') {
             setDrones(prev => prev.map(d => {
               if (d.id === msg.payload.mother.id) {

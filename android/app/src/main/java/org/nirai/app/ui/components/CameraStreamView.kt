@@ -2,7 +2,10 @@ package org.nirai.app.ui.components
 
 import android.content.Context
 import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.hardware.Camera
+import android.util.Base64
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.background
@@ -22,6 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.nirai.app.network.NiraiApi
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun CameraStreamView(
@@ -168,10 +176,11 @@ fun CameraStreamView(
 }
 
 /**
- * SurfaceView for rendering hardware camera preview frames cleanly.
+ * SurfaceView for rendering hardware camera preview frames & streaming live feed.
  */
 class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
     private var camera: Camera? = null
+    private var lastFrameTime = 0L
 
     init {
         holder.addCallback(this)
@@ -181,6 +190,7 @@ class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHold
         try {
             camera = Camera.open()
             camera?.setPreviewDisplay(holder)
+            setupPreviewCallback()
             camera?.startPreview()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -195,6 +205,7 @@ class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHold
 
         try {
             camera?.setPreviewDisplay(holder)
+            setupPreviewCallback()
             camera?.startPreview()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -203,11 +214,44 @@ class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHold
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         try {
+            camera?.setPreviewCallback(null)
             camera?.stopPreview()
             camera?.release()
             camera = null
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun setupPreviewCallback() {
+        camera?.setPreviewCallback { data, cam ->
+            val now = System.currentTimeMillis()
+            if (now - lastFrameTime > 200 && data != null) { // ~5 FPS stream
+                lastFrameTime = now
+                try {
+                    val size = cam.parameters?.previewSize ?: return@setPreviewCallback
+                    val base64 = processNv21ToJpegBase64(data, size.width, size.height)
+                    if (base64 != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            NiraiApi.sendDroneFrame("drone-c1", base64)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    private fun processNv21ToJpegBase64(data: ByteArray, width: Int, height: Int): String? {
+        return try {
+            val yuvImage = YuvImage(data, ImageFormat.NV21, width, height, null)
+            val out = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, width, height), 40, out)
+            val imageBytes = out.toByteArray()
+            "data:image/jpeg;base64," + Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            null
         }
     }
 }

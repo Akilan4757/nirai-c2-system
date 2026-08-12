@@ -7,12 +7,17 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -32,9 +37,6 @@ import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
 import org.nirai.app.ui.components.CameraStreamView
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-
 @Composable
 fun DroneHomeScreen() {
     val context = LocalContext.current
@@ -43,15 +45,56 @@ fun DroneHomeScreen() {
     var batteryPct by remember { mutableStateOf(92) }
     var speedKmh by remember { mutableStateOf(34) }
     var telemetryLog by remember { mutableStateOf("Initializing C2 Stream...") }
+    var hasCameraPermission by remember { mutableStateOf(false) }
+    var gpsPermissionGranted by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    // Camera Permission Launcher (Isolated to Drone Page)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+        if (isGranted) {
+            Toast.makeText(context, "Drone Camera Hardware Enabled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // GPS Permission Launcher
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        gpsPermissionGranted = (permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false) ||
+            (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false)
+    }
+
+    LaunchedEffect(Unit) {
+        // Request Camera permission specifically on Drone page
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        } else {
+            hasCameraPermission = true
+        }
+
+        // Check GPS permission for drone telemetry
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            gpsPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            gpsPermissionGranted = true
+        }
+    }
 
     // Real GPS for drone position
     var currentLat by remember { mutableStateOf(0.0) }
     var currentLng by remember { mutableStateOf(0.0) }
     var hasGpsFix by remember { mutableStateOf(false) }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(gpsPermissionGranted) {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {

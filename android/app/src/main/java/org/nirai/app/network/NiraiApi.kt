@@ -277,4 +277,29 @@ object NiraiApi {
             null
         }
     }
+
+    suspend fun sendDroneFrame(droneId: String, frameBase64: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL/v1/drones/stream-frame")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 3000
+                readTimeout = 3000
+            }
+            val body = """
+                {
+                    "droneId": "$droneId",
+                    "frameData": "$frameBase64"
+                }
+            """.trimIndent()
+            OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

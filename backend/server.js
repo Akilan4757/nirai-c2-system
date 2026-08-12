@@ -7,7 +7,7 @@ import { db } from './firebaseAdmin.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const PORT = 4000;
 const server = http.createServer(app);
@@ -595,6 +595,34 @@ app.post('/v1/drones/telemetry', (req, res) => {
   syncToFirebase('drones', drone.id, drone);
 
   res.json({ success: true, drone });
+});
+
+// Mobile Drone Live Camera Frame Stream Endpoint
+app.post('/v1/drones/stream-frame', (req, res) => {
+  const { droneId, frameData } = req.body;
+  const targetId = droneId || 'drone-c1';
+  let drone = state.drones.find(d => d.id === targetId);
+
+  if (!drone) {
+    drone = {
+      id: targetId,
+      name: `Mobile Drone Node (${targetId})`,
+      type: 'child',
+      status: 'airborne',
+      batteryPct: 95,
+      altitudeMeters: 35,
+      speedKmh: 32,
+      location: { lat: 13.0827, lng: 80.2707 },
+      streamUrl: frameData
+    };
+    state.drones.push(drone);
+  } else {
+    drone.streamUrl = frameData;
+  }
+
+  broadcast('DRONE_FRAME_UPDATED', { droneId: targetId, streamUrl: frameData });
+
+  res.json({ success: true });
 });
 
 // Erase All Data & Hardware Reset Endpoint

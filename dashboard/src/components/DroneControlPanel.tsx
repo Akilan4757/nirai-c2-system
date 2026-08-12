@@ -123,18 +123,27 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
             </span>
           </div>
 
-          {activeChild?.status === 'airborne' ? (
+          {activeChild?.streamUrl || activeChild?.status === 'airborne' ? (
             <div className="relative w-full h-24 bg-slate-900 rounded overflow-hidden mt-1 flex items-center justify-center border border-slate-800">
-              <video
-                src={activeChild.streamUrl || undefined}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-full object-cover opacity-85"
-              />
-              <div className="absolute top-2 left-2 text-[9px] font-mono bg-black/60 px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/30">
-                RECON-1 // LAT: {activeChild.location.lat.toFixed(4)}
+              {activeChild?.streamUrl?.startsWith('data:image') ? (
+                <img
+                  src={activeChild.streamUrl}
+                  alt="Live Drone Camera Stream"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <video
+                  src={activeChild?.streamUrl || undefined}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover opacity-85"
+                />
+              )}
+              <div className="absolute top-2 left-2 text-[9px] font-mono bg-black/70 px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/30 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1"></span>
+                RECON-1 // LAT: {activeChild?.location.lat.toFixed(4)} LNG: {activeChild?.location.lng.toFixed(4)}
               </div>
             </div>
           ) : (

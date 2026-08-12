@@ -90,7 +90,12 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
                   </div>
                   <div className="flex items-start text-slate-300 text-[11px]">
                     <MapPin className="w-3.5 h-3.5 text-rose-400 mr-1.5 flex-shrink-0 mt-0.5" />
-                    <span className="line-clamp-2">{c.address}</span>
+                    <div>
+                      <span className="line-clamp-2">{c.address}</span>
+                      <div className="text-[10px] font-mono text-cyan-400 font-bold mt-0.5">
+                        GPS: {c.location.lat.toFixed(5)}, {c.location.lng.toFixed(5)}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

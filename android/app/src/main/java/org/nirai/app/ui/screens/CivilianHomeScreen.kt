@@ -8,6 +8,8 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -55,6 +57,34 @@ fun CivilianHomeScreen() {
     var currentLng by remember { mutableStateOf(0.0) }
     var currentAddress by remember { mutableStateOf("Acquiring GPS signal...") }
     var hasGpsFix by remember { mutableStateOf(false) }
+    var gpsPermissionGranted by remember { mutableStateOf(false) }
+
+    // GPS Permission Launcher
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        gpsPermissionGranted = fine || coarse
+        if (gpsPermissionGranted) {
+            Toast.makeText(context, "GPS Permission Granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val hasFine = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            gpsPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            gpsPermissionGranted = true
+        }
+    }
 
     // Pulsing animation for SOS button
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -68,8 +98,8 @@ fun CivilianHomeScreen() {
         label = "pulseScale"
     )
 
-    // GPS Location listener
-    DisposableEffect(Unit) {
+    // GPS Location listener — re-registers when permission is granted
+    DisposableEffect(gpsPermissionGranted) {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
