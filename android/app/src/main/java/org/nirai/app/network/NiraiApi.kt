@@ -305,6 +305,7 @@ object NiraiApi {
 
     /**
      * Fetch a single case by ID. Returns Triple(status, assignedOfficerName, etaSeconds) or null.
+     * Dual-path enabled: falls back to direct Cloud Firestore REST query if local C2 backend is offline.
      */
     suspend fun getCaseById(caseId: String): Triple<String, String?, String?>? = withContext(Dispatchers.IO) {
         try {
@@ -327,8 +328,30 @@ object NiraiApi {
 
             Triple(status, officer, eta)
         } catch (e: Exception) {
-            e.printStackTrace()
-            null
+            // Local backend offline/unreachable -> Fallback to direct Firebase REST API
+            try {
+                val firestoreUrl = URL("https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT_ID/databases/(default)/documents/cases/$caseId?key=$FIREBASE_API_KEY")
+                val conn = (firestoreUrl.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                }
+                val response = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+
+                val statusMatch = Regex(""""status"\s*:\s*\{\s*"stringValue"\s*:\s*"([^"]+)"""").find(response)
+                val officerMatch = Regex(""""assignedOfficerName"\s*:\s*\{\s*"stringValue"\s*:\s*"([^"]+)"""").find(response)
+                val etaMatch = Regex(""""etaSeconds"\s*:\s*\{\s*"(integerValue|doubleValue)"\s*:\s*"([^"]+)"""").find(response)
+
+                val status = statusMatch?.groupValues?.get(1) ?: return@withContext null
+                val officer = officerMatch?.groupValues?.get(1)
+                val eta = etaMatch?.groupValues?.get(2)
+
+                Triple(status, officer, eta)
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+                null
+            }
         }
     }
 }

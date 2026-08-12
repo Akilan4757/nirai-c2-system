@@ -185,8 +185,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           <span className="text-purple-300 font-bold">🟣 Mother Drone Station</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-3.5 h-3.5 rounded-full bg-cyan-600 border border-cyan-400 shadow-[0_0_8px_#06b6d4]" />
-          <span className="text-cyan-300 font-bold">🟢 Child Recon Drone</span>
+          <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 border border-emerald-400 shadow-[0_0_8px_#10b981]" />
+          <span className="text-emerald-300 font-bold">🟢 Child Recon Drone</span>
         </div>
       </div>
     </div>
