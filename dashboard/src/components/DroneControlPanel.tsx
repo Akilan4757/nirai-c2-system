@@ -80,7 +80,7 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
         ))}
 
         {/* Child Recon Drone Telemetry */}
-        {childDrones.slice(0, 1).map(c => (
+        {childDrones.map(c => (
           <div key={c.id} className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between font-mono">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-teal-300">{c.name}</span>

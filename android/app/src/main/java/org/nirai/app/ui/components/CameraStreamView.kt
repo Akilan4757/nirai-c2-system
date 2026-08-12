@@ -35,6 +35,7 @@ import java.io.ByteArrayOutputStream
 fun CameraStreamView(
     modifier: Modifier = Modifier,
     nodeLabel: String = "LIVE C2 STREAM",
+    streamId: String = "drone-c1",
     onStreamActive: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -52,7 +53,7 @@ fun CameraStreamView(
         // Native Android Camera Hardware Surface
         AndroidView(
             factory = { ctx ->
-                CameraPreviewSurface(ctx)
+                CameraPreviewSurface(ctx, streamId)
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -177,8 +178,9 @@ fun CameraStreamView(
 
 /**
  * SurfaceView for rendering hardware camera preview frames & streaming live feed.
+ * @param targetStreamId The unique stream identifier sent to the backend (e.g. "drone-c1" or "case-1234").
  */
-class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
+class CameraPreviewSurface(context: Context, private val targetStreamId: String = "drone-c1") : SurfaceView(context), SurfaceHolder.Callback {
     private var camera: Camera? = null
     private var lastFrameTime = 0L
 
@@ -233,7 +235,7 @@ class CameraPreviewSurface(context: Context) : SurfaceView(context), SurfaceHold
                     val base64 = processNv21ToJpegBase64(data, size.width, size.height)
                     if (base64 != null) {
                         CoroutineScope(Dispatchers.IO).launch {
-                            NiraiApi.sendDroneFrame("drone-c1", base64)
+                            NiraiApi.sendDroneFrame(targetStreamId, base64)
                         }
                     }
                 } catch (e: Exception) {

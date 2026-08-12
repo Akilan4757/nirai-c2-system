@@ -352,6 +352,7 @@ app.post('/v1/cases/:id/verify', (req, res) => {
   }
 
   broadcast('CASE_UPDATED', caseItem);
+  syncToFirebase('cases', caseItem.id, caseItem);
   res.json({ success: true, case: caseItem });
 });
 
@@ -395,6 +396,7 @@ app.post('/v1/cases/:id/assign', (req, res) => {
 
   logAudit('OFFICER_ASSIGNED', `Operator assigned ${officer.name}`, id);
   broadcast('CASE_UPDATED', caseItem);
+  syncToFirebase('cases', caseItem.id, caseItem);
 
   res.json({ success: true, case: caseItem });
 });
@@ -429,6 +431,9 @@ app.post('/v1/cases/:id/dispatch-drone', (req, res) => {
   logAudit('DRONE_DISPATCH_CONFIRMED', `Operator ${operatorId || '#1'} confirmed dispatch`, `${mother.name} -> ${caseItem.id}`);
   broadcast('CASE_UPDATED', caseItem);
   broadcast('DRONES_UPDATED', state.drones);
+  syncToFirebase('cases', caseItem.id, caseItem);
+  syncToFirebase('drones', mother.id, mother);
+  syncToFirebase('drones', child1.id, child1);
 
   // Trigger simulated flight path telemetry loop
   startSimulatedDroneFlight(caseItem, mother, child1);
@@ -504,6 +509,8 @@ app.post('/v1/cases/:id/resolve', (req, res) => {
   logAudit('CASE_RESOLVED', 'Operator', id);
   broadcast('CASE_UPDATED', caseItem);
   broadcast('DRONES_UPDATED', state.drones);
+  syncToFirebase('cases', caseItem.id, caseItem);
+  state.drones.forEach(d => syncToFirebase('drones', d.id, d));
 
   res.json({ success: true, case: caseItem });
 });
@@ -657,8 +664,42 @@ app.post('/v1/drones/:id/recall', (req, res) => {
 
   logAudit('DRONE_RECALLED', 'Operator', drone.id);
   broadcast('DRONES_UPDATED', state.drones);
+  syncToFirebase('drones', drone.id, drone);
 
   res.json({ success: true, drone });
+});
+
+// Ground All Drones — Master Emergency Override
+app.post('/v1/drones/ground-all', (req, res) => {
+  // Clear all active flight simulations
+  for (const [caseId, interval] of flightIntervals.entries()) {
+    clearInterval(interval);
+    flightIntervals.delete(caseId);
+  }
+
+  // Reset every drone to docked
+  state.drones.forEach(d => {
+    d.status = 'docked';
+    d.altitudeMeters = 0;
+    d.speedKmh = 0;
+    if (d.homeLocation) d.location = { ...d.homeLocation };
+    syncToFirebase('drones', d.id, d);
+  });
+
+  // Set any airborne cases back to unit_assigned (drones recalled, officers still on task)
+  state.cases.forEach(c => {
+    if (c.status === 'airborne' || c.status === 'on_scene') {
+      c.status = 'unit_assigned';
+      c.droneId = null;
+      broadcast('CASE_UPDATED', c);
+      syncToFirebase('cases', c.id, c);
+    }
+  });
+
+  logAudit('MASTER_GROUND_ALL', 'Super Admin', 'ALL_DRONES');
+  broadcast('DRONES_UPDATED', state.drones);
+
+  res.json({ success: true, message: 'All drones grounded. Flight simulations cancelled.' });
 });
 
 // Proximity Geo Radius Query (§15)

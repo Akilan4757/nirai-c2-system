@@ -40,6 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
 import org.nirai.app.ui.components.CameraStreamView
+import org.nirai.app.utils.SmsFallbackManager
 
 @Composable
 fun CivilianHomeScreen() {
@@ -159,17 +160,66 @@ fun CivilianHomeScreen() {
                 val lng = if (hasGpsFix) currentLng else 80.2707
 
                 coroutineScope.launch {
-                    val caseId = NiraiApi.postSos(
-                        lat = lat, lng = lng,
-                        reporterName = "Civilian User",
-                        reporterPhone = "+919876543210",
-                        address = currentAddress
-                    )
-                    activeCaseId = caseId
-                    sosStatus = "SOS ACTIVE — Case: ${caseId ?: "Unknown"}"
-                    Toast.makeText(context, "Emergency SOS Transmitted!", Toast.LENGTH_LONG).show()
+                    try {
+                        val caseId = NiraiApi.postSos(
+                            lat = lat, lng = lng,
+                            reporterName = "Civilian User",
+                            reporterPhone = "+919876543210",
+                            address = currentAddress
+                        )
+                        activeCaseId = caseId
+                        sosStatus = "SOS ACTIVE — Case: ${caseId ?: "Unknown"}"
+                        Toast.makeText(context, "Emergency SOS Transmitted!", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        // Bug 10: SMS fallback on network failure
+                        val smsSent = SmsFallbackManager.sendOfflineSosPayload(
+                            userId = "usr-mobile",
+                            lat = lat,
+                            lng = lng
+                        )
+                        sosStatus = if (smsSent) "SOS via SMS (Offline Mode)" else "SOS FAILED — Retry"
+                        Toast.makeText(
+                            context,
+                            if (smsSent) "Network unavailable — SOS sent via SMS" else "SOS failed — check connectivity",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
+        }
+    }
+
+    // Bug 9: Poll case status for live dispatch tracking
+    LaunchedEffect(activeCaseId) {
+        val caseId = activeCaseId ?: return@LaunchedEffect
+        while (isSosTriggered && activeCaseId != null) {
+            delay(5000)
+            try {
+                val details = NiraiApi.getCaseById(caseId)
+                if (details != null) {
+                    val status = details.first
+                    val officerName = details.second
+                    val eta = details.third
+                    sosStatus = when (status) {
+                        "raised" -> "SOS Received — Awaiting Verification"
+                        "verifying" -> "Operator Verifying Your Call..."
+                        "unit_assigned" -> "Officer ${officerName ?: ""} assigned — ETA: ${eta ?: "??"}s"
+                        "airborne" -> "Drone Dispatched — Officer ${officerName ?: ""} en route"
+                        "on_scene" -> "Help on scene! Stay calm."
+                        "resolved" -> {
+                            isSosTriggered = false
+                            activeCaseId = null
+                            "Case Resolved — You are safe."
+                        }
+                        "false_alarm" -> {
+                            isSosTriggered = false
+                            activeCaseId = null
+                            "Case Cancelled"
+                        }
+                        else -> "Status: $status"
+                    }
+                }
+            } catch (_: Exception) { /* retry next cycle */ }
         }
     }
 
@@ -384,7 +434,8 @@ fun CivilianHomeScreen() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(180.dp),
-                        nodeLabel = "SOS EMERGENCY CAMERA"
+                        nodeLabel = "SOS EMERGENCY CAMERA",
+                        streamId = activeCaseId ?: "sos-civilian"
                     )
                 }
             }

@@ -61,20 +61,8 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      if (password.length >= 4) {
-        const isSuper = cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
-        const session: UserSession = {
-          email,
-          name: isSuper ? 'Senthil Akilan' : email.split('@')[0],
-          role: isSuper ? 'SUPER ADMIN' : 'OPERATOR',
-          isSuperAdmin: isSuper
-        };
-        setLoading(false);
-        onLoginSuccess(session);
-      } else {
-        setLoading(false);
-        setError('Authentication failed. Please verify credentials.');
-      }
+      setLoading(false);
+      setError(err.message || 'Authentication failed. Please verify credentials.');
     }
   };
 
@@ -97,15 +85,8 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      const isSuper = cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
-      const session: UserSession = {
-        email,
-        name: name || email.split('@')[0],
-        role: isSuper ? 'SUPER ADMIN' : role,
-        isSuperAdmin: isSuper
-      };
       setLoading(false);
-      onLoginSuccess(session);
+      setError(err.message || 'Registration failed. Please try again.');
     }
   };
 
@@ -127,15 +108,8 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
       setLoading(false);
       onLoginSuccess(session);
     } catch (err: any) {
-      const session: UserSession = {
-        email: SUPER_ADMIN_EMAIL,
-        name: 'Senthil Akilan (Super Admin)',
-        role: 'SUPER ADMIN',
-        isSuperAdmin: true,
-        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-      };
       setLoading(false);
-      onLoginSuccess(session);
+      setError(err.message || 'Google authentication failed.');
     }
   };
 

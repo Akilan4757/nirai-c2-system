@@ -232,6 +232,50 @@ fun DroneHomeScreen() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+    // Dynamic mission target from backend
+    var missionCaseId by remember { mutableStateOf<String?>(null) }
+    var missionReporter by remember { mutableStateOf("Awaiting Mission Assignment...") }
+    var missionAddress by remember { mutableStateOf("No active target") }
+    var missionStatus by remember { mutableStateOf("STANDBY") }
+
+    // Poll for active cases assigned to this drone
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val response = NiraiApi.getCases()
+                if (response != null) {
+                    // Find the first airborne/on_scene/unit_assigned case with a droneId
+                    val caseIdPattern = Regex(""""id"\s*:\s*"(case-[^"]+)"""")
+                    val reporterPattern = Regex(""""reporterName"\s*:\s*"([^"]+)"""")
+                    val addressPattern = Regex(""""address"\s*:\s*"([^"]+)"""")
+                    val statusPattern = Regex(""""status"\s*:\s*"([^"]+)"""")
+
+                    val ids = caseIdPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val reporters = reporterPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val addresses = addressPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val statuses = statusPattern.findAll(response).map { it.groupValues[1] }.toList()
+
+                    // Find first active case (airborne, on_scene, or unit_assigned)
+                    val activeIdx = statuses.indexOfFirst {
+                        it == "airborne" || it == "on_scene" || it == "unit_assigned" || it == "verifying" || it == "raised"
+                    }
+                    if (activeIdx >= 0 && activeIdx < ids.size) {
+                        missionCaseId = ids[activeIdx]
+                        missionReporter = reporters.getOrElse(activeIdx) { "Unknown Reporter" }
+                        missionAddress = addresses.getOrElse(activeIdx) { "Unknown Location" }
+                        missionStatus = statuses.getOrElse(activeIdx) { "UNKNOWN" }.uppercase().replace("_", " ")
+                    } else {
+                        missionCaseId = null
+                        missionReporter = "No Active Mission"
+                        missionAddress = "Awaiting C2 dispatch command"
+                        missionStatus = "STANDBY"
+                    }
+                }
+            } catch (_: Exception) {}
+            delay(10000)
+        }
+    }
+
         // Mission Target Card
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
@@ -243,10 +287,26 @@ fun DroneHomeScreen() {
                     Icon(Icons.Default.GpsFixed, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("ASSIGNED RECON MISSION", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF43F5E))
+                    Spacer(modifier = Modifier.weight(1f))
+                    Surface(
+                        color = if (missionCaseId != null) Color(0xFFF59E0B).copy(alpha = 0.15f) else Color(0xFF334155),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = missionStatus,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (missionCaseId != null) Color(0xFFF59E0B) else Color(0xFF94A3B8),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("Case #101 — Emergency SOS Distress", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Target: Priya Sharma (Central Gate 3)", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                Text(
+                    text = if (missionCaseId != null) "${missionCaseId} — Emergency SOS Distress" else "No Active Mission",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White
+                )
+                Text("Target: $missionReporter ($missionAddress)", fontSize = 12.sp, color = Color(0xFF94A3B8))
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (hasGpsFix) "Drone GPS: ${String.format("%.4f", currentLat)} N, ${String.format("%.4f", currentLng)} E" else "Acquiring GPS...",

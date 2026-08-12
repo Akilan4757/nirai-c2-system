@@ -70,12 +70,17 @@ export function App() {
               mediaUrl: data.mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60'
             } as Case;
           });
+          // Firestore is now authoritative — backend syncs on every mutation.
+          // Use Firestore data as base, overlay any WS-only cases not yet in Firestore.
           setCases(prev => {
-            const mergedMap = new Map<string, Case>();
-            prev.forEach(c => mergedMap.set(c.id, c));
-            fbCases.forEach(c => mergedMap.set(c.id, c));
-            const result = Array.from(mergedMap.values());
-            if (result.length > 0) setSelectedCaseId(prev => prev || result[0].id);
+            const fbMap = new Map<string, Case>();
+            fbCases.forEach(c => fbMap.set(c.id, c));
+            // Keep any WS-only cases that Firestore doesn't have yet
+            prev.forEach(c => {
+              if (!fbMap.has(c.id)) fbMap.set(c.id, c);
+            });
+            const result = Array.from(fbMap.values());
+            if (result.length > 0) setSelectedCaseId(prev2 => prev2 || result[0].id);
             return result;
           });
         }

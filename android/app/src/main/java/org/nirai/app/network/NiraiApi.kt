@@ -302,4 +302,33 @@ object NiraiApi {
             false
         }
     }
+
+    /**
+     * Fetch a single case by ID. Returns Triple(status, assignedOfficerName, etaSeconds) or null.
+     */
+    suspend fun getCaseById(caseId: String): Triple<String, String?, String?>? = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL/v1/cases/$caseId")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5000
+                readTimeout = 5000
+            }
+            val response = conn.inputStream.bufferedReader().readText()
+            conn.disconnect()
+
+            val statusMatch = Regex(""""status"\s*:\s*"([^"]+)"""").find(response)
+            val officerMatch = Regex(""""assignedOfficerName"\s*:\s*"([^"]+)"""").find(response)
+            val etaMatch = Regex(""""etaSeconds"\s*:\s*(\d+)""").find(response)
+
+            val status = statusMatch?.groupValues?.get(1) ?: return@withContext null
+            val officer = officerMatch?.groupValues?.get(1)
+            val eta = etaMatch?.groupValues?.get(1)
+
+            Triple(status, officer, eta)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }

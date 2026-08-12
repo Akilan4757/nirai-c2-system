@@ -1,5 +1,6 @@
 package org.nirai.app.ui.screens
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -51,12 +52,32 @@ fun ProfileScreen(
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
-    val contacts = remember {
-        mutableStateListOf(
+    
+    // Bug 11: Persist contacts to SharedPreferences
+    val prefs = context.getSharedPreferences("nirai_contacts", Context.MODE_PRIVATE)
+    
+    fun saveContactsToPrefs(contactList: List<EmergencyContact>) {
+        val json = contactList.joinToString("|||") { "${it.name}::${it.phone}::${it.relation}" }
+        prefs.edit().putString("emergency_contacts", json).apply()
+    }
+    
+    fun loadContactsFromPrefs(): List<EmergencyContact> {
+        val json = prefs.getString("emergency_contacts", null) ?: return listOf(
             EmergencyContact("Mother", "+91 98765 43210", "Family"),
             EmergencyContact("112 ERSS Control", "112", "Emergency")
         )
+        return json.split("|||").mapNotNull { entry ->
+            val parts = entry.split("::")
+            if (parts.size >= 3) EmergencyContact(parts[0], parts[1], parts[2]) else null
+        }.ifEmpty {
+            listOf(
+                EmergencyContact("Mother", "+91 98765 43210", "Family"),
+                EmergencyContact("112 ERSS Control", "112", "Emergency")
+            )
+        }
     }
+    
+    val contacts = remember { mutableStateListOf<EmergencyContact>().also { it.addAll(loadContactsFromPrefs()) } }
 
     // Contact Editing Modal State
     var showContactDialog by remember { mutableStateOf(false) }
@@ -185,6 +206,7 @@ fun ProfileScreen(
                                 Toast.makeText(context, "Contact Added!", Toast.LENGTH_SHORT).show()
                             }
                             showContactDialog = false
+                            saveContactsToPrefs(contacts.toList())
                         } else {
                             Toast.makeText(context, "Please fill Name and Phone", Toast.LENGTH_SHORT).show()
                         }
@@ -437,6 +459,7 @@ fun ProfileScreen(
                                         IconButton(
                                             onClick = {
                                                 contacts.removeAt(index)
+                                                saveContactsToPrefs(contacts.toList())
                                                 Toast.makeText(context, "Contact Deleted", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(36.dp)

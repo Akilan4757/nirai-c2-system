@@ -57,13 +57,54 @@ fun PoliceHomeScreen() {
     var officerLng by remember { mutableStateOf(0.0) }
     var hasGpsFix by remember { mutableStateOf(false) }
 
-    var dispatches by remember {
-        mutableStateOf(
-            listOf(
-                DispatchItem("case-101", "Priya Sharma", "Near Central Railway Station, Gate 3", "1.2 km", "VERIFIED SOS"),
-                DispatchItem("case-102", "Citizen Ping", "T. Nagar Ranganathan Street", "3.4 km", "PROXIMITY ALERT")
-            )
-        )
+    var dispatches by remember { mutableStateOf<List<DispatchItem>>(emptyList()) }
+
+    // Poll backend for real cases every 8 seconds
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val response = NiraiApi.getCases()
+                if (response != null) {
+                    // Parse JSON array of cases from the response
+                    val caseIdPattern = Regex(""""id"\s*:\s*"([^"]+)"""")
+                    val reporterPattern = Regex(""""reporterName"\s*:\s*"([^"]+)"""")
+                    val addressPattern = Regex(""""address"\s*:\s*"([^"]+)"""")
+                    val statusPattern = Regex(""""status"\s*:\s*"([^"]+)"""")
+                    val latPattern = Regex(""""lat"\s*:\s*([\d.]+)""")
+                    val lngPattern = Regex(""""lng"\s*:\s*([\d.]+)""")
+
+                    val ids = caseIdPattern.findAll(response).map { it.groupValues[1] }.filter { it.startsWith("case-") }.toList()
+                    val reporters = reporterPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val addresses = addressPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val statuses = statusPattern.findAll(response).map { it.groupValues[1] }.toList()
+                    val lats = latPattern.findAll(response).map { it.groupValues[1].toDoubleOrNull() ?: 0.0 }.toList()
+                    val lngs = lngPattern.findAll(response).map { it.groupValues[1].toDoubleOrNull() ?: 0.0 }.toList()
+
+                    val items = ids.mapIndexed { i, id ->
+                        val dist = if (hasGpsFix && i < lats.size && i < lngs.size) {
+                            val dLat = Math.toRadians(lats[i] - officerLat)
+                            val dLng = Math.toRadians(lngs[i] - officerLng)
+                            val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                Math.cos(Math.toRadians(officerLat)) * Math.cos(Math.toRadians(lats[i])) *
+                                Math.sin(dLng / 2) * Math.sin(dLng / 2)
+                            val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+                            String.format("%.1f km", 6371.0 * c)
+                        } else "-- km"
+                        DispatchItem(
+                            id = id,
+                            reporter = reporters.getOrElse(i) { "Unknown" },
+                            location = addresses.getOrElse(i) { "Unknown Location" },
+                            distance = dist,
+                            status = (statuses.getOrElse(i) { "raised" }).uppercase().replace("_", " "),
+                            lat = lats.getOrElse(i) { 0.0 },
+                            lng = lngs.getOrElse(i) { 0.0 }
+                        )
+                    }.filter { it.status != "RESOLVED" && it.status != "FALSE ALARM" }
+                    dispatches = items
+                }
+            } catch (_: Exception) {}
+            delay(8000)
+        }
     }
 
     // GPS listener
