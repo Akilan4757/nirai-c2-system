@@ -55,7 +55,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
 }) => {
   const defaultCenter: [number, number] = [13.0827, 80.2707]; // Chennai Central
 
-  const selectedCase = cases.find(c => c.id === selectedCaseId) || (cases.length > 0 ? cases[0] : null);
+  const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
+  const selectedCase = activeCases.find(c => c.id === selectedCaseId) || (activeCases.length > 0 ? activeCases[0] : null);
   const activeDrones = drones.filter(d => d.status === 'airborne');
 
   return (
@@ -74,7 +75,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         <MapRecenter caseItem={selectedCase} />
 
         {/* SOS Cases */}
-        {cases.map((c) => {
+        {activeCases.map((c) => {
           let icon = caseIconUnassigned;
           if (c.status === 'airborne' || c.status === 'on_scene') icon = caseIconAirborne;
           else if (c.status === 'unit_assigned' || c.status === 'verifying') icon = caseIconAssigned;
