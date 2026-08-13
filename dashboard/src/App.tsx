@@ -267,6 +267,8 @@ export function App() {
       setCases([]);
       setAuditLogs([]);
       setSelectedCaseId(null);
+      // Reset all drones to docked so markers clear from map
+      setDrones(prev => prev.map(d => ({ ...d, status: 'docked', altitudeMeters: 0, speedKmh: 0 })));
 
       try {
         const casesSnap = await getDocs(collection(db, 'cases'));
@@ -274,11 +276,15 @@ export function App() {
 
         const auditSnap = await getDocs(collection(db, 'auditLogs'));
         auditSnap.forEach(d => deleteDoc(doc(db, 'auditLogs', d.id)));
+
+        const dronesSnap = await getDocs(collection(db, 'drones'));
+        dronesSnap.forEach(d => deleteDoc(doc(db, 'drones', d.id)));
       } catch (err) {
         console.warn('Firestore purge warning:', err);
       }
 
       fetch(`${API_BASE}/v1/cases/clear-all`, { method: 'POST' }).catch(() => {});
+      fetch(`${API_BASE}/v1/drones/ground-all`, { method: 'POST' }).catch(() => {});
     }
   };
 
@@ -342,7 +348,7 @@ export function App() {
       {/* Main Grid View */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
         {/* Left Column: Alert Queue */}
-        <div className="lg:col-span-3 h-full overflow-hidden">
+        <div className="lg:col-span-2 h-full overflow-hidden">
           <AlertQueue
             cases={cases}
             selectedCaseId={selectedCaseId}
@@ -354,7 +360,7 @@ export function App() {
         </div>
 
         {/* Center Column: Live Map & Telemetry Bottom Bar */}
-        <div className="lg:col-span-6 flex flex-col h-full overflow-hidden">
+        <div className="lg:col-span-8 flex flex-col h-full overflow-hidden">
           <div className="flex-1 relative">
             <LiveMap
               cases={cases}
@@ -376,7 +382,7 @@ export function App() {
         </div>
 
         {/* Right Column: Police Officers Tracker */}
-        <div className="lg:col-span-3 h-full overflow-hidden">
+        <div className="lg:col-span-2 h-full overflow-hidden">
           <PoliceTracker
             officers={officers}
             selectedCase={selectedCase}

@@ -97,11 +97,29 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   selectedCaseId,
   onSelectCase,
 }) => {
-  const defaultCenter: [number, number] = [13.0827, 80.2707]; // Chennai Central
+  const defaultCenter: [number, number] = [13.0827, 80.2707]; // Fallback: Chennai Central
+  const [deviceCenter, setDeviceCenter] = useState<[number, number]>(defaultCenter);
+  const [hudCollapsed, setHudCollapsed] = useState(false);
+
+  // Request device geolocation on mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setDeviceCenter([pos.coords.latitude, pos.coords.longitude]);
+        },
+        () => {
+          console.warn('Geolocation denied — using default center');
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  }, []);
 
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
   const selectedCase = activeCases.find(c => c.id === selectedCaseId) || (activeCases.length > 0 ? activeCases[0] : null);
   const activeDrones = drones.filter(d => d.status === 'airborne');
+  const hasActiveCases = activeCases.length > 0;
 
   // Overlay visibility toggles
   const [showRedZone, setShowRedZone] = useState(true);
@@ -186,8 +204,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   return (
     <div className="relative w-full h-full bg-slate-950">
       <MapContainer
-        center={selectedCase ? [selectedCase.location.lat, selectedCase.location.lng] : defaultCenter}
-        zoom={14}
+        center={selectedCase ? [selectedCase.location.lat, selectedCase.location.lng] : deviceCenter}
+        zoom={selectedCase ? 15 : 13}
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
       >
@@ -341,8 +359,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           );
         })}
 
-        {/* Police Officers */}
-        {officers.map((o) => (
+        {/* Police Officers — only show when active cases exist */}
+        {hasActiveCases && officers.map((o) => (
           <Marker
             key={o.userId}
             position={[o.location.lat, o.location.lng]}
@@ -357,8 +375,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           </Marker>
         ))}
 
-        {/* Drones */}
-        {drones.map((d) => {
+        {/* Drones — only show when active cases exist */}
+        {hasActiveCases && drones.map((d) => {
           const icon = d.type === 'mother' ? motherDroneIcon : childDroneIcon;
           return (
             <Marker
@@ -393,66 +411,61 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         })}
       </MapContainer>
 
-      {/* Control Room Map HUD Overlay */}
-      <div className="absolute top-4 left-4 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-xl p-4 z-[1000] text-xs font-mono space-y-3.5 shadow-2xl w-64">
-        <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-800 pb-1.5">MAP OPERATION CONTROLS</div>
-        
-        {/* Color codes */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_8px_#ef4444]" />
-              <span className="text-rose-300 font-bold">SOS Incident</span>
-            </div>
-            {selectedCase && checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng) && (
-              <span className="text-[9px] bg-red-950 text-red-400 px-1 border border-red-800 rounded font-bold animate-pulse">COLLISION</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-blue-600 border border-blue-400 shadow-[0_0_8px_#3b82f6]" />
-            <span className="text-blue-300 font-bold">Police Unit</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_8px_#a855f7]" />
-            <span className="text-purple-300 font-bold">Mother Drone</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-emerald-600 border border-emerald-400 shadow-[0_0_8px_#10b981]" />
-            <span className="text-emerald-300 font-bold">Child Drone</span>
-          </div>
+      {/* Control Room Map HUD Overlay — Collapsible */}
+      <div className={`absolute top-3 left-3 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-xl z-[1000] text-xs font-mono shadow-2xl transition-all ${hudCollapsed ? 'w-auto' : 'w-56'}`}>
+        <div
+          className="flex items-center justify-between px-3 py-2 cursor-pointer select-none hover:bg-slate-800/50 rounded-t-xl"
+          onClick={() => setHudCollapsed(!hudCollapsed)}
+        >
+          <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">MAP CONTROLS</span>
+          <span className="text-slate-500 text-[10px]">{hudCollapsed ? '▶' : '▼'}</span>
         </div>
 
-        {/* Airspace Overlay Checkbox Toggles */}
-        <div className="border-t border-slate-800 pt-3 space-y-2">
-          <span className="text-slate-400 text-[9px] uppercase font-bold block mb-1">DGCA Airspaces</span>
-          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
-            <input 
-              type="checkbox" 
-              checked={showRedZone} 
-              onChange={() => setShowRedZone(!showRedZone)} 
-              className="rounded bg-slate-950 border-slate-800 text-rose-500 focus:ring-0 w-3.5 h-3.5"
-            />
-            <span className="text-rose-400 font-semibold text-[11px]">Red Zone (Restricted)</span>
-          </label>
-          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
-            <input 
-              type="checkbox" 
-              checked={showYellowZone} 
-              onChange={() => setShowYellowZone(!showYellowZone)} 
-              className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-0 w-3.5 h-3.5"
-            />
-            <span className="text-amber-400 font-semibold text-[11px]">Yellow Zone (AAI Clearance)</span>
-          </label>
-          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
-            <input 
-              type="checkbox" 
-              checked={showGreenZone} 
-              onChange={() => setShowGreenZone(!showGreenZone)} 
-              className="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0 w-3.5 h-3.5"
-            />
-            <span className="text-emerald-400 font-semibold text-[11px]">Green Zone (Nominal)</span>
-          </label>
-        </div>
+        {!hudCollapsed && (
+          <div className="px-3 pb-3 space-y-3">
+            {/* Color codes */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_6px_#ef4444]" />
+                  <span className="text-rose-300 font-bold text-[11px]">SOS Incident</span>
+                </div>
+                {selectedCase && checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng) && (
+                  <span className="text-[8px] bg-red-950 text-red-400 px-1 border border-red-800 rounded font-bold animate-pulse">COLLISION</span>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-blue-400 shadow-[0_0_6px_#3b82f6]" />
+                <span className="text-blue-300 font-bold text-[11px]">Police Unit</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_6px_#a855f7]" />
+                <span className="text-purple-300 font-bold text-[11px]">Mother Drone</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 border border-emerald-400 shadow-[0_0_6px_#10b981]" />
+                <span className="text-emerald-300 font-bold text-[11px]">Child Drone</span>
+              </div>
+            </div>
+
+            {/* Airspace Overlay Toggles */}
+            <div className="border-t border-slate-800 pt-2.5 space-y-1.5">
+              <span className="text-slate-400 text-[9px] uppercase font-bold block">DGCA Airspaces</span>
+              <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+                <input type="checkbox" checked={showRedZone} onChange={() => setShowRedZone(!showRedZone)} className="rounded bg-slate-950 border-slate-800 text-rose-500 focus:ring-0 w-3 h-3" />
+                <span className="text-rose-400 font-semibold text-[10px]">Red Zone</span>
+              </label>
+              <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+                <input type="checkbox" checked={showYellowZone} onChange={() => setShowYellowZone(!showYellowZone)} className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-0 w-3 h-3" />
+                <span className="text-amber-400 font-semibold text-[10px]">Yellow Zone</span>
+              </label>
+              <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+                <input type="checkbox" checked={showGreenZone} onChange={() => setShowGreenZone(!showGreenZone)} className="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0 w-3 h-3" />
+                <span className="text-emerald-400 font-semibold text-[10px]">Green Zone</span>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
