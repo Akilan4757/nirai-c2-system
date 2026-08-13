@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Cpu, BatteryCharging, Radio, CheckSquare, AlertOctagon, Video, ShieldAlert, Play } from 'lucide-react';
+import { Cpu, BatteryCharging, Radio, CheckSquare, AlertOctagon, Video, ShieldAlert, Play, Battery, Orbit, HardDrive } from 'lucide-react';
 import { Drone, Case } from '../types';
+import { theme } from '../theme';
+import { checkRedZoneCollision } from './LiveMap';
 
 interface DroneControlPanelProps {
   drones: Drone[];
@@ -26,18 +28,22 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
   const childDrones = drones.filter(d => d.type === 'child');
   const activeChild = childDrones.find(d => d.status === 'airborne' || d.streamUrl);
 
+  const isBlockedByGeofence = selectedCase 
+    ? checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng) 
+    : false;
+
   return (
-    <div className="bg-slate-900 border-t border-slate-800 p-4 h-64 flex flex-col justify-between">
+    <div className="bg-slate-900 border-t border-slate-800 p-4 h-72 flex flex-col justify-between" style={{ fontFamily: theme.typography.fontSans }}>
       {/* Panel Header */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex items-center space-x-2">
           <Cpu className="w-4 h-4 text-purple-400" />
-          <h2 className="font-display font-semibold text-xs tracking-wide text-slate-100">DRONE FLEET TELEMETRY & LIVE FEED</h2>
+          <h2 className="font-display font-semibold text-xs tracking-wider text-slate-100 uppercase">DRONE FLEET TELEMETRY & BAY DOCK</h2>
         </div>
         {selectedCase && (selectedCase.status === 'airborne' || selectedCase.status === 'on_scene') && (
           <button
             onClick={() => onResolveCase(selectedCase.id)}
-            className="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1 rounded font-mono transition-all flex items-center space-x-1"
+            className="bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 text-xs px-3 py-1.5 rounded-lg font-mono transition-all flex items-center space-x-1.5"
           >
             <CheckSquare className="w-3.5 h-3.5" />
             <span>MARK CASE RESOLVED & RECALL FLEET</span>
@@ -52,64 +58,77 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
           <div key={m.id} className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between font-mono">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-purple-400">{m.name}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                m.status === 'airborne' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800 text-slate-400'
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase border ${
+                m.status === 'airborne' ? 'bg-cyan-950/70 text-cyan-400 border-cyan-500/30' : 'bg-slate-800 text-slate-400 border-slate-700/50'
               }`}>
                 {m.status}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs my-2">
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+              <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
                 <span className="text-[9px] text-slate-400 block">BATTERY</span>
-                <span className="font-bold text-emerald-400">{m.batteryPct}%</span>
+                <span className="font-bold text-emerald-400 tabular-nums">{m.batteryPct}%</span>
               </div>
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+              <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
                 <span className="text-[9px] text-slate-400 block">ALTITUDE</span>
-                <span className="font-bold text-cyan-300">{m.altitudeMeters}m</span>
+                <span className="font-bold text-cyan-300 tabular-nums">{m.altitudeMeters}m</span>
               </div>
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+              <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800">
                 <span className="text-[9px] text-slate-400 block">SPEED</span>
-                <span className="font-bold text-amber-300">{m.speedKmh}km/h</span>
+                <span className="font-bold text-amber-300 tabular-nums">{m.speedKmh}k/h</span>
               </div>
             </div>
             <div className="text-[10px] text-slate-400 flex items-center justify-between">
-              <span>Cradle Bays: {childDrones.filter(c => c.status === 'docked' || c.status === 'charging').length}/{childDrones.length} Docked</span>
+              <span>Bays: {childDrones.filter(c => c.status === 'docked' || c.status === 'charging').length}/{childDrones.length} Docked</span>
               <Radio className="w-3 h-3 text-purple-400 animate-pulse" />
             </div>
           </div>
         ))}
 
-        {/* Child Recon Drone Telemetry */}
-        {childDrones.map(c => (
-          <div key={c.id} className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between font-mono">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-teal-300">{c.name}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                c.status === 'airborne' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40' : 'bg-slate-800 text-slate-400'
-              }`}>
-                {c.status}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs my-2">
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                <span className="text-[9px] text-slate-400 block">BATTERY</span>
-                <span className="font-bold text-emerald-400">{c.batteryPct}%</span>
-              </div>
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                <span className="text-[9px] text-slate-400 block">ALTITUDE</span>
-                <span className="font-bold text-cyan-300">{c.altitudeMeters}m</span>
-              </div>
-              <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
-                <span className="text-[9px] text-slate-400 block">RF LINK</span>
-                <span className="font-bold text-teal-300">900 MHz</span>
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-400 flex items-center justify-between">
-              <span>Parent: Mother Alpha</span>
-              <BatteryCharging className="w-3 h-3 text-emerald-400" />
-            </div>
+        {/* Child Recon Drone Bay Grid */}
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between font-mono">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-bold text-teal-400">MOTHER-DRONE BAY SLOTS</span>
+            <span className="text-[9px] text-slate-400">CRADLE CHARGER ACTIVE</span>
           </div>
-        ))}
+          
+          {/* 2x2 Bay Slot Grid */}
+          <div className="grid grid-cols-2 gap-2 flex-1">
+            {childDrones.map((c, idx) => {
+              // Determine status roles
+              let slotColor = 'border-slate-800 text-slate-400';
+              let IconComp = HardDrive;
+              let label = 'DOCKED';
+
+              if (c.status === 'airborne') {
+                slotColor = 'border-fuchsia-800/40 bg-fuchsia-950/20 text-fuchsia-400';
+                IconComp = Orbit;
+                label = 'RECON';
+              } else if (c.batteryPct < 98) {
+                slotColor = 'border-amber-800/40 bg-amber-950/15 text-amber-400';
+                IconComp = BatteryCharging;
+                label = 'CHARGING';
+              } else {
+                slotColor = 'border-emerald-800/40 bg-emerald-950/15 text-emerald-400';
+                IconComp = Battery;
+                label = 'DOCKED';
+              }
+
+              return (
+                <div key={c.id} className={`border rounded-lg p-1.5 flex flex-col justify-between ${slotColor} transition-all`}>
+                  <div className="flex items-center justify-between text-[9px] font-bold">
+                    <span>BAY {idx + 1}</span>
+                    <IconComp className="w-3 h-3 animate-pulse" />
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <span className="text-[8px] font-bold tracking-wider">{label}</span>
+                    <span className="text-xs font-bold tabular-nums">{c.batteryPct}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Live Stream View */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden relative flex flex-col justify-between p-2">
@@ -118,7 +137,7 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
               <Video className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
               <span className="text-xs font-mono font-bold text-slate-200">LIVE OPTICAL FEED</span>
             </div>
-            <span className="text-[10px] font-mono bg-rose-950/80 text-rose-300 border border-rose-800 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] font-mono bg-rose-950/80 text-rose-300 border border-rose-850 px-1.5 py-0.5 rounded">
               {activeChild?.status === 'airborne' ? 'STREAMING 1080P' : 'FEED STANDBY'}
             </span>
           </div>
@@ -141,15 +160,15 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
                   className="w-full h-full object-cover opacity-85"
                 />
               )}
-              <div className="absolute top-2 left-2 text-[9px] font-mono bg-black/70 px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/30 flex items-center">
+              <div className="absolute top-1.5 left-1.5 text-[8px] font-mono bg-black/75 px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/20 flex items-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1"></span>
                 RECON-1 // LAT: {activeChild?.location.lat.toFixed(4)} LNG: {activeChild?.location.lng.toFixed(4)}
               </div>
             </div>
           ) : (
             <div className="w-full h-24 bg-slate-900/50 rounded flex flex-col items-center justify-center text-slate-600 font-mono text-xs border border-slate-800/80 mt-1">
-              <ShieldAlert className="w-6 h-6 mb-1 opacity-50" />
-              <span>WAITING FOR DISPATCH LAUNCH</span>
+              <ShieldAlert className="w-6 h-6 mb-1 opacity-50 text-slate-500" />
+              <span className="text-[10px]">WAITING FOR LAUNCH TRIGGER</span>
             </div>
           )}
         </div>
@@ -157,17 +176,30 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
 
       {/* Human-in-the-Loop "Confirm Dispatch" Modal */}
       {dispatchModalCaseId && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[9999] p-4">
-          <div className="bg-slate-900 border border-cyan-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-[9999] p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
             <div className="flex items-center space-x-3 border-b border-slate-800 pb-3">
               <div className="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
                 <AlertOctagon className="w-6 h-6 text-cyan-400" />
               </div>
               <div>
-                <h3 className="font-display font-bold text-lg text-white">HUMAN AUTHORIZATION REQUIRED</h3>
-                <p className="text-xs text-slate-400 font-mono">Mother-Child Drone Launch Authorization Gate</p>
+                <h3 className="font-display font-bold text-base text-white uppercase tracking-wider">HUMAN AUTHORIZATION REQUIREMENT</h3>
+                <p className="text-[10px] text-slate-400 font-mono">Mother-Child Drone Launch Security Gate</p>
               </div>
             </div>
+
+            {/* Geofence collision warning block */}
+            {isBlockedByGeofence && (
+              <div className="bg-rose-950/30 border border-rose-500/30 p-3.5 rounded-xl space-y-1">
+                <div className="flex items-center space-x-2 text-rose-400 font-bold text-xs font-mono">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                  <span>LAUNCH BLOCKED: RESTRICTED AIRSPACE</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                  The target incident coordinate lies inside the **Chennai Port Air Command (Z-RED-04)** no-fly boundary. Dispatch is legally locked by DGCA regulation.
+                </p>
+              </div>
+            )}
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs font-mono text-slate-300">
               <div className="flex justify-between">
@@ -180,18 +212,25 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Pre-flight Diagnostics:</span>
-                <span className="text-emerald-400 font-bold">ALL SYSTEMS NOMINAL</span>
+                <span className={isBlockedByGeofence ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                  {isBlockedByGeofence ? 'GEOPATH BLOCK DETECTED' : 'ALL SYSTEMS NOMINAL'}
+                </span>
               </div>
             </div>
 
             {/* Digital Sky Airspace Verification Box */}
-            <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl flex items-start space-x-3">
+            <div className={`border p-3 rounded-xl flex items-start space-x-3 transition-colors ${
+              isBlockedByGeofence 
+                ? 'bg-slate-950 border-slate-800 opacity-60' 
+                : 'bg-indigo-950/40 border-indigo-500/30'
+            }`}>
               <input
                 type="checkbox"
                 id="airspaceCheck"
+                disabled={isBlockedByGeofence}
                 checked={airspaceChecked}
                 onChange={(e) => setAirspaceChecked(e.target.checked)}
-                className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+                className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed"
               />
               <label htmlFor="airspaceCheck" className="text-xs text-slate-300 font-sans cursor-pointer leading-relaxed">
                 <span className="font-semibold text-indigo-300 font-mono block">DGCA Digital Sky Airspace Verification</span>
@@ -208,13 +247,13 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
                 CANCEL
               </button>
               <button
-                disabled={!airspaceChecked}
+                disabled={!airspaceChecked || isBlockedByGeofence}
                 onClick={() => {
                   onConfirmDispatch(dispatchModalCaseId, selectedMotherId, airspaceChecked);
                   setAirspaceChecked(false);
                 }}
                 className={`px-5 py-2 text-xs font-mono font-bold rounded-lg flex items-center space-x-2 transition-all ${
-                  airspaceChecked
+                  airspaceChecked && !isBlockedByGeofence
                     ? 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-lg shadow-cyan-500/30 cursor-pointer'
                     : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                 }`}

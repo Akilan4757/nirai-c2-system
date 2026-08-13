@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
+import React, { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap, Polygon, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import { Case, Officer, Drone } from '../types';
+import { theme } from '../theme';
 
 interface LiveMapProps {
   cases: Case[];
@@ -11,11 +12,19 @@ interface LiveMapProps {
   onSelectCase: (caseId: string) => void;
 }
 
-// Custom Leaflet Icons with explicit Inline CSS Hex Colors for maximum contrast
+// Utility to check Red Zone collision
+export const checkRedZoneCollision = (lat: number, lng: number): boolean => {
+  // Red zone covers longitude 80.275 to 80.300 and latitude 13.085 to 13.105
+  return lat >= 13.085 && lat <= 13.105 && lng >= 80.275 && lng <= 80.300;
+};
+
+// Custom Leaflet Icons using theme tokens
 const createSvgIcon = (bgColor: string, borderColor: string, symbol: string, isPulsing: boolean = false) => {
-  const pulseHtml = isPulsing ? `<div style="position:absolute; inset:-6px; border-radius:9999px; background-color:${borderColor}; opacity:0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>` : '';
+  const pulseHtml = isPulsing 
+    ? `<div style="position:absolute; inset:-6px; border-radius:9999px; background-color:${borderColor}; opacity:0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>` 
+    : '';
   const svg = `
-    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background-color:${bgColor}; border:3px solid ${borderColor}; box-shadow: 0 0 12px ${borderColor}; color:white; font-weight:bold; font-family:monospace; font-size:11px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:9999px; background-color:${bgColor}; border:3px solid ${borderColor}; box-shadow: 0 0 12px ${borderColor}; color:white; font-weight:bold; font-family:${theme.typography.fontMono}; font-size:10px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">
       ${pulseHtml}
       <span style="position:relative; z-index:10;">${symbol}</span>
     </div>
@@ -23,19 +32,28 @@ const createSvgIcon = (bgColor: string, borderColor: string, symbol: string, isP
   return L.divIcon({
     html: svg,
     className: 'custom-map-icon',
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
   });
 };
 
-// Distinct Vivid Map Markers
-const caseIconUnassigned = createSvgIcon('#881337', '#ef4444', 'SOS', true);
-const caseIconAssigned = createSvgIcon('#78350f', '#f59e0b', 'SOS');
-const caseIconAirborne = createSvgIcon('#083344', '#06b6d4', 'AIR');
-const officerIcon = createSvgIcon('#1e3a8a', '#3b82f6', 'POL');
-const motherDroneIcon = createSvgIcon('#581c87', '#a855f7', 'MD');
-const childDroneIcon = createSvgIcon('#064e3b', '#10b981', 'CD');
+// Distinct Map Markers using theme colors
+const caseIconUnassigned = createSvgIcon(theme.colors.background.surface, theme.colors.status.critical, 'SOS', true);
+const caseIconAssigned = createSvgIcon(theme.colors.background.surface, theme.colors.status.warning, 'SOS');
+const caseIconAirborne = createSvgIcon(theme.colors.background.surface, theme.colors.telemetry.droneCyan, 'AIR');
+const officerIcon = createSvgIcon(theme.colors.background.surface, theme.colors.status.info, 'POL');
+const motherDroneIcon = createSvgIcon(theme.colors.background.surface, theme.colors.telemetry.motherPurple, 'MD');
+const childDroneIcon = createSvgIcon(theme.colors.background.surface, theme.colors.status.nominal, 'CD');
 
+// Resize handle icon (small cyan dot)
+const resizeHandleIcon = L.divIcon({
+  html: `<div style="width: 14px; height: 14px; background-color: ${theme.colors.telemetry.droneCyan}; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.5);"></div>`,
+  className: 'resize-handle-icon',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
+// Custom component to manage map centering and viewport resets
 const MapRecenter = ({ caseItem }: { caseItem: Case | null }) => {
   const map = useMap();
   useEffect(() => {
@@ -44,6 +62,32 @@ const MapRecenter = ({ caseItem }: { caseItem: Case | null }) => {
     }
   }, [caseItem, map]);
   return null;
+};
+
+// Helper to generate a multi-segment mock route
+const generateMockRoute = (start: [number, number], end: [number, number]): [number, number][] => {
+  const mid1: [number, number] = [start[0], start[1] + (end[1] - start[1]) * 0.4];
+  const mid2: [number, number] = [end[0] - (end[0] - start[0]) * 0.3, mid1[1]];
+  const points: [number, number][] = [start, mid1, mid2, end];
+  
+  // Interpolate more coordinates for smooth polyline animation
+  const interpolated: [number, number][] = [];
+  const segments = points.length - 1;
+  const stepsPerSegment = 5;
+
+  for (let s = 0; s < segments; s++) {
+    const sStart = points[s];
+    const sEnd = points[s + 1];
+    for (let i = 0; i < stepsPerSegment; i++) {
+      const t = i / stepsPerSegment;
+      interpolated.push([
+        sStart[0] + (sEnd[0] - sStart[0]) * t,
+        sStart[1] + (sEnd[1] - sStart[1]) * t
+      ]);
+    }
+  }
+  interpolated.push(end);
+  return interpolated;
 };
 
 export const LiveMap: React.FC<LiveMapProps> = ({
@@ -58,6 +102,86 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
   const selectedCase = activeCases.find(c => c.id === selectedCaseId) || (activeCases.length > 0 ? activeCases[0] : null);
   const activeDrones = drones.filter(d => d.status === 'airborne');
+
+  // Overlay visibility toggles
+  const [showRedZone, setShowRedZone] = useState(true);
+  const [showYellowZone, setShowYellowZone] = useState(true);
+  const [showGreenZone, setShowGreenZone] = useState(true);
+
+  // Dynamic state for active geofence sizes
+  const [geofenceRadii, setGeofenceRadii] = useState<Record<string, number>>({});
+  
+  // Animated Polyline paths map: key = droneId
+  const [animatedPaths, setAnimatedPaths] = useState<Record<string, [number, number][]>>({});
+  const animationIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Debounced server broadcast helper
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const triggerDebouncedQuery = (caseId: string, radius: number) => {
+    if (debounceTimers.current[caseId]) {
+      clearTimeout(debounceTimers.current[caseId]);
+    }
+    debounceTimers.current[caseId] = setTimeout(() => {
+      console.log(`Server Broadcast: Proximity query recalculated for case ${caseId} at radius ${Math.round(radius)}m`);
+    }, 800);
+  };
+
+  // Polyline drawing animation logic
+  useEffect(() => {
+    if (!selectedCase) return;
+
+    activeDrones.forEach(d => {
+      const targetRoute = generateMockRoute(
+        [d.location.lat, d.location.lng],
+        [selectedCase.location.lat, selectedCase.location.lng]
+      );
+      
+      let stepIndex = 0;
+      if (animationIntervals.current[d.id]) {
+        clearInterval(animationIntervals.current[d.id]);
+      }
+
+      const interval = setInterval(() => {
+        if (stepIndex <= targetRoute.length) {
+          setAnimatedPaths(prev => ({
+            ...prev,
+            [d.id]: targetRoute.slice(0, stepIndex + 1)
+          }));
+          stepIndex++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 50);
+
+      animationIntervals.current[d.id] = interval;
+    });
+
+    return () => {
+      Object.values(animationIntervals.current).forEach(clearInterval);
+    };
+  }, [selectedCaseId, drones]);
+
+  // Airspace Zone definitions
+  const airspaceZones = {
+    red: {
+      bounds: [[13.085, 80.275], [13.105, 80.275], [13.105, 80.300], [13.085, 80.300]] as [number, number][],
+      name: 'Chennai Port Air Command (Z-RED-04)',
+      authority: 'AAI & Indian Navy (INS Adyar)',
+      ceiling: '0m AGL (Strict No-Fly Zone)'
+    },
+    yellow: {
+      bounds: [[13.060, 80.220], [13.080, 80.220], [13.080, 80.255], [13.060, 80.255]] as [number, number][],
+      name: 'AAI Controlled Airspace (Z-YEL-12)',
+      authority: 'Chennai ATC (MADRAS RADIO)',
+      ceiling: '60m AGL'
+    },
+    green: {
+      bounds: [[13.045, 80.260], [13.060, 80.260], [13.060, 80.285], [13.045, 80.285]] as [number, number][],
+      name: 'Chennai Central Recreational airspace (Z-GRN-09)',
+      authority: 'DGCA Digital Sky Autopilot Portal',
+      ceiling: '120m AGL'
+    }
+  };
 
   return (
     <div className="relative w-full h-full bg-slate-950">
@@ -74,11 +198,64 @@ export const LiveMap: React.FC<LiveMapProps> = ({
 
         <MapRecenter caseItem={selectedCase} />
 
+        {/* DGCA Airspace Overlays */}
+        {showRedZone && (
+          <Polygon
+            positions={airspaceZones.red.bounds}
+            pathOptions={{ color: theme.colors.status.critical, fillColor: theme.colors.status.critical, fillOpacity: 0.15, weight: 1.5 }}
+          >
+            <Tooltip sticky>
+              <div className="p-1 font-mono text-[11px] text-slate-100 bg-slate-900 border border-slate-700 rounded shadow-md">
+                <span className="font-bold text-rose-400 block">{airspaceZones.red.name}</span>
+                <span>Auth: {airspaceZones.red.authority}</span>
+                <span className="block font-bold mt-1 text-red-500">Ceiling: {airspaceZones.red.ceiling}</span>
+              </div>
+            </Tooltip>
+          </Polygon>
+        )}
+
+        {showYellowZone && (
+          <Polygon
+            positions={airspaceZones.yellow.bounds}
+            pathOptions={{ color: theme.colors.status.warning, fillColor: theme.colors.status.warning, fillOpacity: 0.12, weight: 1.5 }}
+          >
+            <Tooltip sticky>
+              <div className="p-1 font-mono text-[11px] text-slate-100 bg-slate-900 border border-slate-700 rounded shadow-md">
+                <span className="font-bold text-amber-400 block">{airspaceZones.yellow.name}</span>
+                <span>Auth: {airspaceZones.yellow.authority}</span>
+                <span className="block font-bold mt-1 text-amber-500">Ceiling: {airspaceZones.yellow.ceiling}</span>
+              </div>
+            </Tooltip>
+          </Polygon>
+        )}
+
+        {showGreenZone && (
+          <Polygon
+            positions={airspaceZones.green.bounds}
+            pathOptions={{ color: theme.colors.status.nominal, fillColor: theme.colors.status.nominal, fillOpacity: 0.08, weight: 1.5 }}
+          >
+            <Tooltip sticky>
+              <div className="p-1 font-mono text-[11px] text-slate-100 bg-slate-900 border border-slate-700 rounded shadow-md">
+                <span className="font-bold text-emerald-400 block">{airspaceZones.green.name}</span>
+                <span>Auth: {airspaceZones.green.authority}</span>
+                <span className="block font-bold mt-1 text-emerald-500">Ceiling: {airspaceZones.green.ceiling}</span>
+              </div>
+            </Tooltip>
+          </Polygon>
+        )}
+
         {/* SOS Cases */}
         {activeCases.map((c) => {
           let icon = caseIconUnassigned;
           if (c.status === 'airborne' || c.status === 'on_scene') icon = caseIconAirborne;
           else if (c.status === 'unit_assigned' || c.status === 'verifying') icon = caseIconAssigned;
+
+          const currentRadius = geofenceRadii[c.id] || 300;
+          const insideRedZone = checkRedZoneCollision(c.location.lat, c.location.lng);
+
+          // Draggable edge handle: Positioned east of circle center
+          const lngOffset = currentRadius / (111320 * Math.cos(c.location.lat * Math.PI / 180));
+          const handlePosition: [number, number] = [c.location.lat, c.location.lng + lngOffset];
 
           return (
             <React.Fragment key={c.id}>
@@ -90,13 +267,21 @@ export const LiveMap: React.FC<LiveMapProps> = ({
                 }}
               >
                 <Popup>
-                  <div className="p-1 font-sans">
+                  <div className="p-2 font-sans w-64 bg-slate-900 text-slate-100 rounded border border-slate-700">
                     <div className="flex items-center justify-between border-b border-slate-700 pb-1 mb-2">
                       <span className="font-mono text-xs font-bold text-rose-400">{c.id}</span>
                       <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded uppercase font-mono">{c.status}</span>
                     </div>
                     <p className="text-xs font-semibold text-white">{c.reporterName}</p>
                     <p className="text-[11px] text-slate-300 mb-2">{c.address}</p>
+                    
+                    {insideRedZone && (
+                      <div className="mb-2 bg-red-950/70 border border-red-500/40 text-red-300 font-mono text-[10px] px-2 py-1 rounded flex items-center space-x-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                        <span>Blocked: Restricted Airspace</span>
+                      </div>
+                    )}
+
                     <button
                       onClick={() => onSelectCase(c.id)}
                       className="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-mono py-1 rounded transition-all"
@@ -107,17 +292,51 @@ export const LiveMap: React.FC<LiveMapProps> = ({
                 </Popup>
               </Marker>
 
-              {/* Proximity Radius Ring */}
+              {/* Draggable Geofence Circle */}
               <Circle
                 center={[c.location.lat, c.location.lng]}
-                radius={300}
+                radius={currentRadius}
                 pathOptions={{
-                  color: c.id === selectedCaseId ? '#06b6d4' : '#ef4444',
-                  fillColor: c.id === selectedCaseId ? '#06b6d4' : '#ef4444',
+                  color: insideRedZone 
+                    ? theme.colors.status.critical 
+                    : (c.id === selectedCaseId ? theme.colors.telemetry.droneCyan : theme.colors.status.critical),
+                  fillColor: insideRedZone 
+                    ? theme.colors.status.critical 
+                    : (c.id === selectedCaseId ? theme.colors.telemetry.droneCyan : theme.colors.status.critical),
                   fillOpacity: 0.12,
-                  dashArray: '4, 8'
+                  dashArray: insideRedZone ? '2, 4' : '4, 8'
                 }}
-              />
+              >
+                <Tooltip permanent direction="top" opacity={0.8} className="custom-radius-tooltip">
+                  <span className="font-mono font-bold text-[9px] bg-slate-950/90 text-cyan-300 border border-slate-700 px-1.5 py-0.5 rounded">
+                    {Math.round(currentRadius)}m Proximity Geofence
+                  </span>
+                </Tooltip>
+              </Circle>
+
+              {/* Draggable Handle on Geofence Edge (Only for selected case) */}
+              {c.id === selectedCaseId && (
+                <Marker
+                  position={handlePosition}
+                  icon={resizeHandleIcon}
+                  draggable={true}
+                  eventHandlers={{
+                    drag: (e) => {
+                      const markerLatLng = e.target.getLatLng();
+                      const distance = L.latLng(c.location.lat, c.location.lng).distanceTo(markerLatLng);
+                      // Constrain radius between 100m and 1200m
+                      const constrained = Math.max(100, Math.min(1200, distance));
+                      setGeofenceRadii(prev => ({
+                        ...prev,
+                        [c.id]: constrained
+                      }));
+                    },
+                    dragend: () => {
+                      triggerDebouncedQuery(c.id, currentRadius);
+                    }
+                  }}
+                />
+              )}
             </React.Fragment>
           );
         })}
@@ -157,37 +376,82 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           );
         })}
 
-        {/* Trajectory lines from Mother Drone to Active Case */}
-        {selectedCase && activeDrones.map(d => (
-          <Polyline
-            key={`poly-${d.id}`}
-            positions={[
-              [d.location.lat, d.location.lng],
-              [selectedCase.location.lat, selectedCase.location.lng]
-            ]}
-            pathOptions={{ color: '#38bdf8', weight: 2, dashArray: '6, 6' }}
-          />
-        ))}
+        {/* Animated Trajectory lines from Mother Drone to Active Case */}
+        {selectedCase && activeDrones.map(d => {
+          const pathCoords = animatedPaths[d.id] || [[d.location.lat, d.location.lng]];
+          return (
+            <Polyline
+              key={`poly-${d.id}`}
+              positions={pathCoords}
+              pathOptions={{ 
+                color: theme.colors.telemetry.droneCyan, 
+                weight: 3, 
+                dashArray: '3, 4'
+              }}
+            />
+          );
+        })}
       </MapContainer>
 
-      {/* Distinct Color Map HUD Legend */}
-      <div className="absolute top-4 left-4 bg-slate-900/95 backdrop-blur border border-slate-800 rounded-lg p-3 z-[1000] text-xs font-mono space-y-2 shadow-2xl">
-        <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">MAP LEGEND (VIVID CODES)</div>
-        <div className="flex items-center space-x-2">
-          <div className="w-3.5 h-3.5 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_8px_#ef4444] animate-pulse" />
-          <span className="text-rose-300 font-bold">🔴 Active SOS Pin</span>
+      {/* Control Room Map HUD Overlay */}
+      <div className="absolute top-4 left-4 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-xl p-4 z-[1000] text-xs font-mono space-y-3.5 shadow-2xl w-64">
+        <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider border-b border-slate-800 pb-1.5">MAP OPERATION CONTROLS</div>
+        
+        {/* Color codes */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_8px_#ef4444]" />
+              <span className="text-rose-300 font-bold">SOS Incident</span>
+            </div>
+            {selectedCase && checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng) && (
+              <span className="text-[9px] bg-red-950 text-red-400 px-1 border border-red-800 rounded font-bold animate-pulse">COLLISION</span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 rounded-full bg-blue-600 border border-blue-400 shadow-[0_0_8px_#3b82f6]" />
+            <span className="text-blue-300 font-bold">Police Unit</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_8px_#a855f7]" />
+            <span className="text-purple-300 font-bold">Mother Drone</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-3 h-3 rounded-full bg-emerald-600 border border-emerald-400 shadow-[0_0_8px_#10b981]" />
+            <span className="text-emerald-300 font-bold">Child Drone</span>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border border-blue-400 shadow-[0_0_8px_#3b82f6]" />
-          <span className="text-blue-300 font-bold">🔵 Police Unit</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-3.5 h-3.5 rounded-full bg-purple-600 border border-purple-400 shadow-[0_0_8px_#a855f7]" />
-          <span className="text-purple-300 font-bold">🟣 Mother Drone Station</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 border border-emerald-400 shadow-[0_0_8px_#10b981]" />
-          <span className="text-emerald-300 font-bold">🟢 Child Recon Drone</span>
+
+        {/* Airspace Overlay Checkbox Toggles */}
+        <div className="border-t border-slate-800 pt-3 space-y-2">
+          <span className="text-slate-400 text-[9px] uppercase font-bold block mb-1">DGCA Airspaces</span>
+          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+            <input 
+              type="checkbox" 
+              checked={showRedZone} 
+              onChange={() => setShowRedZone(!showRedZone)} 
+              className="rounded bg-slate-950 border-slate-800 text-rose-500 focus:ring-0 w-3.5 h-3.5"
+            />
+            <span className="text-rose-400 font-semibold text-[11px]">Red Zone (Restricted)</span>
+          </label>
+          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+            <input 
+              type="checkbox" 
+              checked={showYellowZone} 
+              onChange={() => setShowYellowZone(!showYellowZone)} 
+              className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-0 w-3.5 h-3.5"
+            />
+            <span className="text-amber-400 font-semibold text-[11px]">Yellow Zone (AAI Clearance)</span>
+          </label>
+          <label className="flex items-center space-x-2 text-slate-300 cursor-pointer hover:text-white">
+            <input 
+              type="checkbox" 
+              checked={showGreenZone} 
+              onChange={() => setShowGreenZone(!showGreenZone)} 
+              className="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0 w-3.5 h-3.5"
+            />
+            <span className="text-emerald-400 font-semibold text-[11px]">Green Zone (Nominal)</span>
+          </label>
         </div>
       </div>
     </div>

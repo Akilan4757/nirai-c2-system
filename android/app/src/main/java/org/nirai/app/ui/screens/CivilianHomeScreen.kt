@@ -6,15 +6,20 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,25 +33,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
 import org.nirai.app.ui.components.CameraStreamView
+import org.nirai.app.ui.theme.NiraiTheme
+import org.nirai.app.ui.theme.TabularTypography
 import org.nirai.app.utils.SmsFallbackManager
 
 @Composable
 fun CivilianHomeScreen() {
     val context = LocalContext.current
-    var isCountdownActive by remember { mutableStateOf(false) }
-    var countdownSeconds by remember { mutableStateOf(5) }
+    val hapticFeedback = LocalHapticFeedback.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Offline / Connectivity State
+    var isOffline by remember { mutableStateOf(false) }
+
+    // Stepper & Gesture State
+    var isPressing by remember { mutableStateOf(false) }
+    var gestureProgress by remember { mutableStateOf(0f) }
     var isSosTriggered by remember { mutableStateOf(false) }
     var sosStatus by remember { mutableStateOf("") }
     var activeCaseId by remember { mutableStateOf<String?>(null) }
@@ -59,6 +81,30 @@ fun CivilianHomeScreen() {
     var currentAddress by remember { mutableStateOf("Acquiring GPS signal...") }
     var hasGpsFix by remember { mutableStateOf(false) }
     var gpsPermissionGranted by remember { mutableStateOf(false) }
+
+    // Lifecycle monitoring to pause heavy graphics when backgrounded
+    var isAppActive by remember { mutableStateOf(true) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            isAppActive = event == Lifecycle.Event.ON_RESUME || event == Lifecycle.Event.ON_START
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Connectivity state checking loop
+    LaunchedEffect(context) {
+        while (true) {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNetwork = cm?.activeNetwork
+            val caps = cm?.getNetworkCapabilities(activeNetwork)
+            isOffline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true
+            delay(3000)
+        }
+    }
 
     // GPS Permission Launcher
     val gpsPermissionLauncher = rememberLauncherForActivityResult(
@@ -87,19 +133,19 @@ fun CivilianHomeScreen() {
         }
     }
 
-    // Pulsing animation for SOS button
+    // Pulsing animation for outer radial rings (only active when not pressing)
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.08f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
+            animation = tween(900, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseScale"
     )
 
-    // GPS Location listener — re-registers when permission is granted
+    // GPS Location listener
     DisposableEffect(gpsPermissionGranted) {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationListener = object : LocationListener {
@@ -143,19 +189,44 @@ fun CivilianHomeScreen() {
         }
     }
 
-    // Countdown logic
-    LaunchedEffect(isCountdownActive) {
-        if (isCountdownActive) {
-            countdownSeconds = 5
-            while (countdownSeconds > 0 && isCountdownActive) {
-                delay(1000)
-                if (isCountdownActive) countdownSeconds--
+    // Hold-to-SOS resistant progress logic (haptic ticks at 25/50/75/100%)
+    LaunchedEffect(isPressing) {
+        if (isPressing) {
+            val duration = 2500L // 2.5 seconds hold
+            val steps = 50
+            val delayTime = duration / steps
+            var tick25 = false
+            var tick50 = false
+            var tick75 = false
+            var tick100 = false
+
+            for (step in 1..steps) {
+                if (!isPressing) break
+                delay(delayTime)
+                gestureProgress = step.toFloat() / steps
+
+                val progressPercentage = gestureProgress * 100
+                if (progressPercentage >= 25f && !tick25) {
+                    tick25 = true
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                if (progressPercentage >= 50f && !tick50) {
+                    tick50 = true
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                if (progressPercentage >= 75f && !tick75) {
+                    tick75 = true
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                if (progressPercentage >= 100f && !tick100) {
+                    tick100 = true
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
             }
-            if (isCountdownActive && countdownSeconds <= 0) {
-                isCountdownActive = false
+
+            if (gestureProgress >= 1f) {
                 isSosTriggered = true
                 sosStatus = "Transmitting SOS to NIRAI C2..."
-
                 val lat = if (hasGpsFix) currentLat else 13.0827
                 val lng = if (hasGpsFix) currentLng else 80.2707
 
@@ -171,7 +242,6 @@ fun CivilianHomeScreen() {
                         sosStatus = "SOS ACTIVE — Case: ${caseId ?: "Unknown"}"
                         Toast.makeText(context, "Emergency SOS Transmitted!", Toast.LENGTH_LONG).show()
                     } catch (e: Exception) {
-                        // Bug 10: SMS fallback on network failure
                         val smsSent = SmsFallbackManager.sendOfflineSosPayload(
                             userId = "usr-mobile",
                             lat = lat,
@@ -185,11 +255,15 @@ fun CivilianHomeScreen() {
                         ).show()
                     }
                 }
+            } else {
+                gestureProgress = 0f
             }
+        } else {
+            gestureProgress = 0f
         }
     }
 
-    // Bug 9: Poll case status for live dispatch tracking
+    // Status polling loop for active SOS
     LaunchedEffect(activeCaseId) {
         val caseId = activeCaseId ?: return@LaunchedEffect
         while (isSosTriggered && activeCaseId != null) {
@@ -209,11 +283,13 @@ fun CivilianHomeScreen() {
                         "resolved" -> {
                             isSosTriggered = false
                             activeCaseId = null
+                            SmsFallbackManager.resetFallbackStatus()
                             "Case Resolved — You are safe."
                         }
                         "false_alarm" -> {
                             isSosTriggered = false
                             activeCaseId = null
+                            SmsFallbackManager.resetFallbackStatus()
                             "Case Cancelled"
                         }
                         else -> "Status: $status"
@@ -223,257 +299,602 @@ fun CivilianHomeScreen() {
         }
     }
 
+    // Render using dynamic theme context
+    NiraiTheme(isOfflineMode = isOffline) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Offline HUD banner status card
+            if (isOffline) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SignalCellularConnectedNoInternet0Bar,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "OFFLINE FALLBACK MODE ACTIVE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (SmsFallbackManager.isSmsSentAndConfirmed) 
+                                    "SMS Dispatch Confirmed ✓" 
+                                else 
+                                    "SMS fallback channel ready for emergency transmission",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // GPS Location Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (hasGpsFix) Icons.Default.MyLocation else Icons.Default.LocationSearching,
+                            contentDescription = null,
+                            tint = if (hasGpsFix) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (hasGpsFix) "GPS LOCK ACQUIRED" else "SEARCHING FOR SATELLITES...",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasGpsFix) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = currentAddress,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                        maxLines = 2
+                    )
+                    if (hasGpsFix) {
+                        Text(
+                            text = "LAT: ${String.format("%.4f", currentLat)} | LNG: ${String.format("%.4f", currentLng)}",
+                            style = TabularTypography.telemetrySmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            // Active Case ID Banner
+            AnimatedVisibility(visible = activeCaseId != null && isSosTriggered) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF7C2D12)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("ACTIVE OPERATION ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                            Text(
+                                text = activeCaseId ?: "",
+                                style = TabularTypography.telemetryMedium,
+                                color = Color.White
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                if (!isCancelling && activeCaseId != null) {
+                                    isCancelling = true
+                                    coroutineScope.launch {
+                                        val success = NiraiApi.cancelCase(activeCaseId!!)
+                                        if (success) {
+                                            isSosTriggered = false
+                                            sosStatus = ""
+                                            activeCaseId = null
+                                            SmsFallbackManager.resetFallbackStatus()
+                                            Toast.makeText(context, "SOS Cancelled", Toast.LENGTH_SHORT).show()
+                                        }
+                                        isCancelling = false
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (isCancelling) "..." else "CANCEL",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Central Hold-to-Trigger Area
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(240.dp)
+            ) {
+                // Pulsing rings when idle
+                if (!isSosTriggered && !isPressing) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(230.dp)
+                            .scale(pulseScale)
+                    ) {}
+                }
+
+                if (isSosTriggered) {
+                    Surface(
+                        color = Color(0xFF06B6D4).copy(alpha = 0.12f),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .scale(pulseScale)
+                    ) {}
+                }
+
+                // Custom radial progress indicator ring during held press
+                if (isPressing && gestureProgress > 0f) {
+                    val radialColor = MaterialTheme.colorScheme.primary
+                    Canvas(modifier = Modifier.size(210.dp)) {
+                        drawCircle(
+                            color = Color(0xFF1E293B),
+                            radius = size.width / 2f,
+                            style = Stroke(width = 6.dp.toPx())
+                        )
+                        drawArc(
+                            color = radialColor,
+                            startAngle = -90f,
+                            sweepAngle = 360f * gestureProgress,
+                            useCenter = false,
+                            style = Stroke(width = 8.dp.toPx())
+                        )
+                    }
+                }
+
+                // Core SOS button with pointer input holder modifier
+                Surface(
+                    color = when {
+                        isSosTriggered -> Color(0xFF06B6D4)
+                        isPressing -> MaterialTheme.colorScheme.primary
+                        else -> Color(0xFFEF4444)
+                    },
+                    shape = CircleShape,
+                    shadowElevation = 18.dp,
+                    modifier = Modifier
+                        .size(185.dp)
+                        .pointerInput(isSosTriggered) {
+                            if (!isSosTriggered) {
+                                detectTapGestures(
+                                    onPress = {
+                                        isPressing = true
+                                        try {
+                                            awaitRelease()
+                                        } finally {
+                                            isPressing = false
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        if (isPressing) {
+                            Text(
+                                text = "${(gestureProgress * 100).toInt()}%",
+                                style = TabularTypography.telemetryLarge,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "HOLD TO BROADCAST",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.9f),
+                                letterSpacing = 0.5.sp
+                            )
+                        } else if (isSosTriggered) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(34.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "HELP DISPATCHED",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Stay calm, stay in line of sight",
+                                fontSize = 9.sp,
+                                color = Color.White.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "SOS",
+                                fontSize = 42.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "HOLD 3s TO TRIGGER",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.85f),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Proximity radar sweep and Dispatch Stepper
+            if (isSosTriggered) {
+                // Stepper layout
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "MISSION DISPATCH LOG",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        
+                        DispatchStepper(status = sosStatus)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        CameraStreamView(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(170.dp),
+                            nodeLabel = "EYES ON SCENE FEED",
+                            streamId = activeCaseId ?: "sos-civilian"
+                        )
+                    }
+                }
+            } else {
+                // Show Proximity Radar search view when idle
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Radar,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "CIVILIAN & POLICE PROXIMITY SCAN",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        ProximityRadar(isAppActive = isAppActive)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 5-state Vertical Dispatch Stepper with morph animations
+@Composable
+fun DispatchStepper(status: String) {
+    val isAlertSent = true
+    val isOperatorVerified = status.contains("Verified") || status.contains("assigned") || status.contains("Dispatched") || status.contains("scene") || status.contains("Responded")
+    val isDroneAirborne = status.contains("Dispatched") || status.contains("scene")
+    val isOfficerAssigned = status.contains("assigned") || status.contains("en route") || status.contains("scene")
+    val isEyesOnScene = status.contains("scene") || status.contains("Help on scene")
+
+    val steps = listOf(
+        Pair("Alert Sent & Geo-Tagged", isAlertSent),
+        Pair("Operator Verified Incident", isOperatorVerified),
+        Pair("Drone Airborne (First Eyes)", isDroneAirborne),
+        Pair("Officer Assigned & Responding", isOfficerAssigned),
+        Pair("First Eyes / Officers on Scene", isEyesOnScene)
+    )
+
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF020617))
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
     ) {
-        // GPS Location Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (hasGpsFix) Icons.Default.MyLocation else Icons.Default.LocationSearching,
-                        contentDescription = null,
-                        tint = if (hasGpsFix) Color(0xFF10B981) else Color(0xFFF59E0B),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (hasGpsFix) "GPS LOCKED" else "ACQUIRING GPS...",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (hasGpsFix) Color(0xFF10B981) else Color(0xFFF59E0B)
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = currentAddress,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White,
-                    maxLines = 2
-                )
-                if (hasGpsFix) {
-                    Text(
-                        text = "GPS: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLng)}",
-                        fontSize = 11.sp,
-                        color = Color(0xFF06B6D4)
-                    )
-                }
-            }
-        }
+        steps.forEachIndexed { idx, step ->
+            val isCompleted = step.second
+            // The step is active if it is the current step (the furthest completed step)
+            val isActive = idx == steps.indexOfLast { it.second }
 
-        // Active Case ID Banner
-        AnimatedVisibility(visible = activeCaseId != null && isSosTriggered) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF7C2D12)),
-                shape = RoundedCornerShape(12.dp),
+            Row(
+                verticalAlignment = Alignment.Top,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("ACTIVE CASE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
-                        Text(
-                            text = activeCaseId ?: "",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            if (!isCancelling && activeCaseId != null) {
-                                isCancelling = true
-                                coroutineScope.launch {
-                                    val success = NiraiApi.cancelCase(activeCaseId!!)
-                                    if (success) {
-                                        isSosTriggered = false
-                                        sosStatus = ""
-                                        activeCaseId = null
-                                        countdownSeconds = 5
-                                        Toast.makeText(context, "SOS Cancelled", Toast.LENGTH_SHORT).show()
-                                    }
-                                    isCancelling = false
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (isCancelling) "..." else "CANCEL",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Central SOS Button
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(220.dp)
-        ) {
-            // Outer pulsing ring
-            if (!isSosTriggered && !isCountdownActive) {
-                Surface(
-                    color = Color(0xFFEF4444).copy(alpha = 0.08f),
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .size(220.dp)
-                        .scale(pulseScale)
-                ) {}
-            }
-
-            if (isSosTriggered) {
-                Surface(
-                    color = Color(0xFF06B6D4).copy(alpha = 0.12f),
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .scale(pulseScale)
-                ) {}
-            }
-
-            Surface(
-                color = when {
-                    isSosTriggered -> Color(0xFF06B6D4)
-                    isCountdownActive -> Color(0xFFF59E0B)
-                    else -> Color(0xFFEF4444)
-                },
-                shape = CircleShape,
-                shadowElevation = 20.dp,
-                modifier = Modifier
-                    .size(180.dp)
-                    .clickable {
-                        if (isCountdownActive) {
-                            isCountdownActive = false
-                            countdownSeconds = 5
-                        } else if (!isSosTriggered) {
-                            isCountdownActive = true
-                        }
-                    }
-            ) {
+                // Stepper Column containing node and connector line
                 Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(28.dp)
                 ) {
-                    if (isCountdownActive) {
-                        Text(
-                            text = "$countdownSeconds",
-                            fontSize = 56.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text("TAP TO CANCEL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f))
-                    } else if (isSosTriggered) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("HELP EN ROUTE", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = sosStatus.take(30),
-                            fontSize = 10.sp,
-                            color = Color.White.copy(alpha = 0.8f),
-                            textAlign = TextAlign.Center
-                        )
-                    } else {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("SOS", fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("PRESS TO ACTIVATE", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.8f))
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Bottom Section
-        if (isSosTriggered) {
-            // Active dispatch info + camera
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("LIVE DISPATCH STATUS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(sosStatus.ifEmpty { "Awaiting dispatch..." }, fontSize = 13.sp, color = Color.White)
-                    Text(
-                        text = "GPS: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLng)}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF10B981)
+                    val scale by animateFloatAsState(
+                        targetValue = if (isCompleted) 1f else 0.85f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                        label = "nodeScale"
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
 
-                    CameraStreamView(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        nodeLabel = "SOS EMERGENCY CAMERA",
-                        streamId = activeCaseId ?: "sos-civilian"
-                    )
-                }
-            }
-        } else {
-            // Emergency contacts preview
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ContactPhone, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("EMERGENCY CONTACTS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .size(24.dp)
+                            .scale(scale)
+                            .clip(CircleShape)
+                            .background(
+                                if (isCompleted) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) 
+                                else Color(0xFF1E293B)
+                            )
+                            .border(
+                                width = 1.5.dp,
+                                color = if (isCompleted) MaterialTheme.colorScheme.primary else Color(0xFF475569),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("+91 98765 43210\nMother", modifier = Modifier.padding(10.dp), fontSize = 11.sp, color = Color.White)
-                        }
-                        Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("112 / 100\nERSS Control", modifier = Modifier.padding(10.dp), fontSize = 11.sp, color = Color.White)
+                        if (isCompleted) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "${idx + 1}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
                         }
                     }
+
+                    if (idx < steps.size - 1) {
+                        Box(
+                            modifier = Modifier
+                                .width(2.dp)
+                                .height(22.dp)
+                                .background(
+                                    if (steps[idx + 1].second) MaterialTheme.colorScheme.primary 
+                                    else Color(0xFF334155)
+                                )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.padding(top = 2.dp)) {
+                    Text(
+                        text = step.first,
+                        color = if (isCompleted) Color.White else Color(0xFF64748B),
+                        fontSize = 13.sp,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
                 }
             }
         }
+    }
+}
+
+// Proximity Radar Sweep rendering engine (lifecycle pause aware)
+@Composable
+fun ProximityRadar(
+    isAppActive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rotationAngle = remember { Animatable(0f) }
+
+    LaunchedEffect(isAppActive) {
+        if (isAppActive) {
+            rotationAngle.animateTo(
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(4000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                )
+            )
+        }
+    }
+
+    // Safe civilian, police, and drone stations represented in relative coordinates
+    val nodes = remember {
+        listOf(
+            Triple(45f, 0.65f, Color(0xFF3B82F6)), // Responding Police (Blue)
+            Triple(165f, 0.45f, Color(0xFF10B981)), // Safe Civilian (Green)
+            Triple(280f, 0.78f, Color(0xFFA855F7))  // Drone Station (Purple)
+        )
+    }
+
+    val radarColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = modifier
+            .size(170.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF070B16))
+            .border(1.5.dp, radarColor.copy(alpha = 0.3f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = size.width / 2f
+            val radius = size.width / 2f
+
+            // Inner concentric grid rings
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = radius * 0.33f,
+                style = Stroke(1f)
+            )
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = radius * 0.66f,
+                style = Stroke(1f)
+            )
+
+            // Dynamic sweeping line
+            val angleRad = Math.toRadians(rotationAngle.value.toDouble())
+            val endX = center + radius * Math.cos(angleRad).toFloat()
+            val endY = center + radius * Math.sin(angleRad).toFloat()
+
+            drawLine(
+                color = radarColor.copy(alpha = 0.8f),
+                start = Offset(center, center),
+                end = Offset(endX, endY),
+                strokeWidth = 2f
+            )
+
+            // Draw sweeps and compute light fades when line sweeps past nodes
+            nodes.forEach { (nodeAngle, distanceFraction, color) ->
+                val diffAngle = (rotationAngle.value - nodeAngle + 360f) % 360f
+                
+                // Active glow duration: 90 degrees of trail sweep
+                val alpha = if (diffAngle < 90f) {
+                    1f - (diffAngle / 90f)
+                } else {
+                    0.05f
+                }
+
+                val nodeRad = Math.toRadians(nodeAngle.toDouble())
+                val nodeX = center + (radius * distanceFraction) * Math.cos(nodeRad).toFloat()
+                val nodeY = center + (radius * distanceFraction) * Math.sin(nodeRad).toFloat()
+
+                // Glow ring
+                if (alpha > 0.4f) {
+                    drawCircle(
+                        color = color,
+                        radius = 12f * alpha,
+                        center = Offset(nodeX, nodeY),
+                        style = Stroke(1.5f),
+                        alpha = alpha
+                    )
+                }
+
+                // Core Node Marker
+                drawCircle(
+                    color = color,
+                    radius = 4.5f,
+                    center = Offset(nodeX, nodeY),
+                    alpha = alpha.coerceAtLeast(0.12f)
+                )
+            }
+        }
+
+        Text(
+            text = "SCANNING RANGE: 300M",
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = radarColor.copy(alpha = 0.6f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp)
+        )
     }
 }
