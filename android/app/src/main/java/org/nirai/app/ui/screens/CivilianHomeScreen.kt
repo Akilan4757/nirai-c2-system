@@ -76,9 +76,9 @@ fun CivilianHomeScreen() {
     val coroutineScope = rememberCoroutineScope()
 
     // Real GPS
-    var currentLat by remember { mutableStateOf(0.0) }
-    var currentLng by remember { mutableStateOf(0.0) }
-    var currentAddress by remember { mutableStateOf("Acquiring GPS signal...") }
+    var currentLat by remember { mutableStateOf(13.0827) }
+    var currentLng by remember { mutableStateOf(80.2707) }
+    var currentAddress by remember { mutableStateOf("Chennai, Tamil Nadu") }
     var hasGpsFix by remember { mutableStateOf(false) }
     var gpsPermissionGranted by remember { mutableStateOf(false) }
 
@@ -98,10 +98,12 @@ fun CivilianHomeScreen() {
     // Connectivity state checking loop
     LaunchedEffect(context) {
         while (true) {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            val activeNetwork = cm?.activeNetwork
-            val caps = cm?.getNetworkCapabilities(activeNetwork)
-            isOffline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true
+            try {
+                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                val activeNetwork = cm?.activeNetwork
+                val caps = cm?.getNetworkCapabilities(activeNetwork)
+                isOffline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true
+            } catch (_: Exception) {}
             delay(3000)
         }
     }
@@ -153,17 +155,20 @@ fun CivilianHomeScreen() {
                 currentLat = location.latitude
                 currentLng = location.longitude
                 hasGpsFix = true
-                try {
-                    val geocoder = android.location.Geocoder(context, java.util.Locale.getDefault())
-                    @Suppress("DEPRECATION")
-                    val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                    currentAddress = addresses?.firstOrNull()?.let { addr ->
-                        buildString {
-                            addr.getAddressLine(0)?.let { append(it) }
-                        }
-                    } ?: "${String.format("%.4f", location.latitude)}, ${String.format("%.4f", location.longitude)}"
-                } catch (e: Exception) {
-                    currentAddress = "${String.format("%.4f", location.latitude)}, ${String.format("%.4f", location.longitude)}"
+                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val geocoder = android.location.Geocoder(context, java.util.Locale.getDefault())
+                        @Suppress("DEPRECATION")
+                        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                        val resolved = addresses?.firstOrNull()?.let { addr ->
+                            buildString {
+                                addr.getAddressLine(0)?.let { append(it) }
+                            }
+                        } ?: "${String.format("%.4f", location.latitude)}, ${String.format("%.4f", location.longitude)}"
+                        currentAddress = resolved
+                    } catch (e: Exception) {
+                        currentAddress = "${String.format("%.4f", location.latitude)}, ${String.format("%.4f", location.longitude)}"
+                    }
                 }
             }
             @Deprecated("Deprecated") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -171,21 +176,36 @@ fun CivilianHomeScreen() {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 5f, locationListener)
-            locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5f, locationListener)
-            val lastKnown = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            lastKnown?.let {
-                currentLat = it.latitude
-                currentLng = it.longitude
-                hasGpsFix = true
-                currentAddress = "${String.format("%.4f", it.latitude)}, ${String.format("%.4f", it.longitude)}"
+        try {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                
+                if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 5f, locationListener)
+                }
+                if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5f, locationListener)
+                }
+                val lastKnown = try {
+                    locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                } catch (_: Exception) { null }
+
+                lastKnown?.let {
+                    currentLat = it.latitude
+                    currentLng = it.longitude
+                    hasGpsFix = true
+                    currentAddress = "${String.format("%.4f", it.latitude)}, ${String.format("%.4f", it.longitude)}"
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         onDispose {
-            locationManager?.removeUpdates(locationListener)
+            try {
+                locationManager?.removeUpdates(locationListener)
+            } catch (_: Exception) {}
         }
     }
 
@@ -790,19 +810,16 @@ fun ProximityRadar(
     isAppActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val rotationAngle = remember { Animatable(0f) }
-
-    LaunchedEffect(isAppActive) {
-        if (isAppActive) {
-            rotationAngle.animateTo(
-                targetValue = 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(4000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                )
-            )
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "radarRotation")
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (isAppActive) 360f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotationAngle"
+    )
 
     // Safe civilian, police, and drone stations represented in relative coordinates
     val nodes = remember {
@@ -840,7 +857,7 @@ fun ProximityRadar(
             )
 
             // Dynamic sweeping line
-            val angleRad = Math.toRadians(rotationAngle.value.toDouble())
+            val angleRad = Math.toRadians(rotationAngle.toDouble())
             val endX = center + radius * Math.cos(angleRad).toFloat()
             val endY = center + radius * Math.sin(angleRad).toFloat()
 
@@ -853,7 +870,7 @@ fun ProximityRadar(
 
             // Draw sweeps and compute light fades when line sweeps past nodes
             nodes.forEach { (nodeAngle, distanceFraction, color) ->
-                val diffAngle = (rotationAngle.value - nodeAngle + 360f) % 360f
+                val diffAngle = (rotationAngle - nodeAngle + 360f) % 360f
                 
                 // Active glow duration: 90 degrees of trail sweep
                 val alpha = if (diffAngle < 90f) {

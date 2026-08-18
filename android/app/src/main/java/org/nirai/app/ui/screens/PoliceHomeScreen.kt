@@ -59,9 +59,32 @@ fun PoliceHomeScreen() {
     val officerUserId = "usr-p1"
 
     // Real GPS for officer location
-    var officerLat by remember { mutableStateOf(0.0) }
-    var officerLng by remember { mutableStateOf(0.0) }
+    var officerLat by remember { mutableStateOf(13.0850) }
+    var officerLng by remember { mutableStateOf(80.2740) }
     var hasGpsFix by remember { mutableStateOf(false) }
+    var gpsPermissionGranted by remember { mutableStateOf(false) }
+
+    val gpsPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        gpsPermissionGranted = (permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false) ||
+                (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false)
+    }
+
+    LaunchedEffect(Unit) {
+        val hasFine = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            gpsPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            gpsPermissionGranted = true
+        }
+    }
 
     var dispatches by remember { mutableStateOf<List<DispatchItem>>(emptyList()) }
 
@@ -113,7 +136,7 @@ fun PoliceHomeScreen() {
     }
 
     // GPS listener
-    DisposableEffect(Unit) {
+    DisposableEffect(gpsPermissionGranted) {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
@@ -126,34 +149,49 @@ fun PoliceHomeScreen() {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 10f, locationListener)
-            locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000, 10f, locationListener)
-            val lastKnown = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            lastKnown?.let {
-                officerLat = it.latitude
-                officerLng = it.longitude
-                hasGpsFix = true
+        try {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                
+                if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 10f, locationListener)
+                }
+                if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000, 10f, locationListener)
+                }
+                val lastKnown = try {
+                    locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                } catch (_: Exception) { null }
+
+                lastKnown?.let {
+                    officerLat = it.latitude
+                    officerLng = it.longitude
+                    hasGpsFix = true
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         onDispose {
-            locationManager?.removeUpdates(locationListener)
+            try {
+                locationManager?.removeUpdates(locationListener)
+            } catch (_: Exception) {}
         }
     }
 
     // Periodic heartbeat to C2
-    LaunchedEffect(isOnDuty, hasGpsFix) {
+    LaunchedEffect(isOnDuty, hasGpsFix, officerLat, officerLng) {
         while (true) {
-            if (hasGpsFix) {
+            try {
                 NiraiApi.updateOfficerLocation(
                     userId = officerUserId,
                     lat = officerLat,
                     lng = officerLng,
                     onDuty = isOnDuty
                 )
-            }
+            } catch (_: Exception) {}
             delay(5000)
         }
     }

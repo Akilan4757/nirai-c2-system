@@ -190,17 +190,21 @@ class CameraPreviewSurface(context: Context, private val targetStreamId: String 
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         try {
-            camera = Camera.open()
-            camera?.setPreviewDisplay(holder)
-            setupPreviewCallback()
-            camera?.startPreview()
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                Camera.getNumberOfCameras() > 0) {
+                camera = Camera.open()
+                camera?.setPreviewDisplay(holder)
+                setupPreviewCallback()
+                camera?.startPreview()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
+            camera = null
         }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (holder.surface == null) return
+        if (holder.surface == null || camera == null) return
         try {
             camera?.stopPreview()
         } catch (e: Exception) {}

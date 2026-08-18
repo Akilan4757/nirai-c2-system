@@ -90,8 +90,8 @@ fun DroneHomeScreen() {
     }
 
     // Real GPS for drone position
-    var currentLat by remember { mutableStateOf(0.0) }
-    var currentLng by remember { mutableStateOf(0.0) }
+    var currentLat by remember { mutableStateOf(13.0827) }
+    var currentLng by remember { mutableStateOf(80.2707) }
     var hasGpsFix by remember { mutableStateOf(false) }
 
     DisposableEffect(gpsPermissionGranted) {
@@ -107,28 +107,42 @@ fun DroneHomeScreen() {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 5f, locationListener)
-            locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5f, locationListener)
-            val lastKnown = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            lastKnown?.let {
-                currentLat = it.latitude
-                currentLng = it.longitude
-                hasGpsFix = true
+        try {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                
+                if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 5f, locationListener)
+                }
+                if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 5f, locationListener)
+                }
+                val lastKnown = try {
+                    locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                } catch (_: Exception) { null }
+
+                lastKnown?.let {
+                    currentLat = it.latitude
+                    currentLng = it.longitude
+                    hasGpsFix = true
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         onDispose {
-            locationManager?.removeUpdates(locationListener)
+            try {
+                locationManager?.removeUpdates(locationListener)
+            } catch (_: Exception) {}
         }
     }
 
     // Periodic telemetry sync
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentLat, currentLng, hasGpsFix, droneStatus, altitudeMeters) {
         while (true) {
-            delay(3000)
-            if (hasGpsFix) {
+            try {
                 if (batteryPct > 15) batteryPct -= 1
 
                 NiraiApi.updateDroneTelemetry(
@@ -140,7 +154,8 @@ fun DroneHomeScreen() {
                     status = droneStatus.lowercase()
                 )
                 telemetryLog = "GPS: ${String.format("%.4f", currentLat)}, ${String.format("%.4f", currentLng)} → C2 Live"
-            }
+            } catch (_: Exception) {}
+            delay(3000)
         }
     }
 
