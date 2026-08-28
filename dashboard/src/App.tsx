@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, query, orderBy, getDocs, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Header } from './components/Header';
@@ -12,19 +12,37 @@ import { ConnectedDevicesPanel } from './components/ConnectedDevicesPanel';
 import { DashboardAuthScreen, UserSession } from './components/DashboardAuthScreen';
 import { SuperAdminModal } from './components/SuperAdminModal';
 import { Case, Officer, Drone, AuditLog } from './types';
+import { AlertCircle, Navigation, ShieldCheck } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000`;
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 1 Day (24 hours)
 
 export function App() {
   const [userSession, setUserSession] = useState<UserSession | null>(() => {
     try {
       const saved = localStorage.getItem('nirai_c2_session');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed: UserSession = JSON.parse(saved);
+        // Check 1 day (24h) session expiration
+        if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+          localStorage.removeItem('nirai_c2_session');
+          return null;
+        }
+        return parsed;
+      }
+      return null;
     } catch (e) {
       return null;
     }
   });
+
+  // Real-time GPS Operator State
+  const [operatorLocation, setOperatorLocation] = useState<{ lat: number; lng: number; accuracy?: number; timestamp?: number } | null>(() => {
+    return userSession?.location || null;
+  });
+  const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'locked' | 'denied' | 'unsupported'>('acquiring');
+  const [gpsErrorMsg, setGpsErrorMsg] = useState<string | null>(null);
 
   const [cases, setCases] = useState<Case[]>([]);
   const [officers, setOfficers] = useState<Officer[]>([]);
@@ -39,6 +57,94 @@ export function App() {
   const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [dispatchModalCaseId, setDispatchModalCaseId] = useState<string | null>(null);
+
+  // Real-time GPS continuous high-accuracy acquisition on dashboard entry and refresh
+  const acquireLiveGps = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGpsStatus('unsupported');
+      setGpsErrorMsg('Browser does not support Geolocation.');
+      return;
+    }
+
+    setGpsStatus('acquiring');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy),
+          timestamp: pos.timestamp
+        };
+        setOperatorLocation(loc);
+        setGpsStatus('locked');
+        setGpsErrorMsg(null);
+
+        // Update stored session with fresh live coordinates
+        if (userSession) {
+          const updatedSession = { ...userSession, location: loc };
+          setUserSession(updatedSession);
+          try {
+            localStorage.setItem('nirai_c2_session', JSON.stringify(updatedSession));
+          } catch (e) {}
+        }
+      },
+      (err) => {
+        console.warn('Geolocation acquisition warning:', err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsStatus('denied');
+          setGpsErrorMsg('Location access was denied. Real-time GPS is required for C2 terminal operations.');
+        } else {
+          setGpsStatus('acquiring');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  }, [userSession]);
+
+  // Set up continuous GPS watcher & session 24h validity checker
+  useEffect(() => {
+    // Check 24-hour expiration periodically
+    const sessionCheckTimer = setInterval(() => {
+      if (userSession?.expiresAt && Date.now() > userSession.expiresAt) {
+        setUserSession(null);
+        try { localStorage.removeItem('nirai_c2_session'); } catch (e) {}
+      }
+    }, 30000);
+
+    // Initial GPS acquisition
+    acquireLiveGps();
+
+    let watchId: number | null = null;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const loc = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy),
+            timestamp: pos.timestamp
+          };
+          setOperatorLocation(loc);
+          setGpsStatus('locked');
+          setGpsErrorMsg(null);
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            setGpsStatus('denied');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    }
+
+    return () => {
+      clearInterval(sessionCheckTimer);
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Initial fetch
@@ -70,12 +176,9 @@ export function App() {
               mediaUrl: data.mediaUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60'
             } as Case;
           });
-          // Firestore is now authoritative — backend syncs on every mutation.
-          // Use Firestore data as base, overlay any WS-only cases not yet in Firestore.
           setCases(prev => {
             const fbMap = new Map<string, Case>();
             fbCases.forEach(c => fbMap.set(c.id, c));
-            // Keep any WS-only cases that Firestore doesn't have yet
             prev.forEach(c => {
               if (!fbMap.has(c.id)) fbMap.set(c.id, c);
             });
@@ -127,7 +230,7 @@ export function App() {
 
       ws.onopen = () => {
         setIsConnected(true);
-        reconnectDelay = 1000; // Reset backoff on successful connect
+        reconnectDelay = 1000;
       };
 
       ws.onmessage = (event) => {
@@ -253,8 +356,10 @@ export function App() {
   };
 
   const handleSimulateOfficerMove = () => {
-    const lat = 13.085 + (Math.random() - 0.5) * 0.01;
-    const lng = 80.274 + (Math.random() - 0.5) * 0.01;
+    const baseLat = operatorLocation ? operatorLocation.lat : 13.085;
+    const baseLng = operatorLocation ? operatorLocation.lng : 80.274;
+    const lat = baseLat + (Math.random() - 0.5) * 0.01;
+    const lng = baseLng + (Math.random() - 0.5) * 0.01;
     fetch(`${API_BASE}/v1/officers/location`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -267,7 +372,6 @@ export function App() {
       setCases([]);
       setAuditLogs([]);
       setSelectedCaseId(null);
-      // Reset all drones to docked so markers clear from map
       setDrones(prev => prev.map(d => ({ ...d, status: 'docked', altitudeMeters: 0, speedKmh: 0 })));
 
       try {
@@ -313,7 +417,13 @@ export function App() {
       <DashboardAuthScreen
         onLoginSuccess={(session) => {
           setUserSession(session);
-          try { localStorage.setItem('nirai_c2_session', JSON.stringify(session)); } catch (e) {}
+          if (session.location) {
+            setOperatorLocation(session.location);
+            setGpsStatus('locked');
+          }
+          try {
+            localStorage.setItem('nirai_c2_session', JSON.stringify(session));
+          } catch (e) {}
         }}
       />
     );
@@ -329,11 +439,31 @@ export function App() {
         onClearAllRecords={handleClearAllRecords}
         onOpenSuperAdminModal={() => setIsSuperAdminModalOpen(true)}
         session={userSession}
+        operatorLocation={operatorLocation}
+        gpsStatus={gpsStatus}
+        onForceRequestGps={acquireLiveGps}
         onLogout={() => {
           setUserSession(null);
+          setOperatorLocation(null);
           try { localStorage.removeItem('nirai_c2_session'); } catch (e) {}
         }}
       />
+
+      {/* GPS Warning Banner if denied */}
+      {gpsStatus === 'denied' && (
+        <div className="bg-rose-950/80 border-b border-rose-500/50 px-6 py-2 flex items-center justify-between text-xs font-mono text-rose-200">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-400" />
+            <span>MANDATORY LOCATION REQUIREMENT: Real-time GPS access is denied in browser. Please enable device location for live dispatch calculations.</span>
+          </div>
+          <button
+            onClick={acquireLiveGps}
+            className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase transition-all"
+          >
+            GRANT GPS ACCESS
+          </button>
+        </div>
+      )}
 
       <div className="px-6 pt-2 pb-1">
         <ConnectedDevicesPanel
@@ -342,6 +472,8 @@ export function App() {
           drones={drones}
           isConnected={isConnected}
           onClearAll={handleClearAllRecords}
+          operatorLocation={operatorLocation}
+          gpsStatus={gpsStatus}
         />
       </div>
 
@@ -368,6 +500,9 @@ export function App() {
               drones={drones}
               selectedCaseId={selectedCaseId}
               onSelectCase={(id) => setSelectedCaseId(id)}
+              operatorLocation={operatorLocation}
+              gpsStatus={gpsStatus}
+              onForceRequestGps={acquireLiveGps}
             />
           </div>
 

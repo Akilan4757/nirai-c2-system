@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck, Sliders } from 'lucide-react';
+import { Shield, Activity, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck, Sliders, Navigation, Clock } from 'lucide-react';
 import { Case } from '../types';
 import { UserSession } from './DashboardAuthScreen';
 
@@ -12,6 +12,9 @@ interface HeaderProps {
   onOpenSuperAdminModal?: () => void;
   session?: UserSession | null;
   onLogout?: () => void;
+  operatorLocation?: { lat: number; lng: number; accuracy?: number; timestamp?: number } | null;
+  gpsStatus?: 'acquiring' | 'locked' | 'denied' | 'unsupported';
+  onForceRequestGps?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,16 +25,34 @@ export const Header: React.FC<HeaderProps> = ({
   onClearAllRecords,
   onOpenSuperAdminModal,
   session,
-  onLogout
+  onLogout,
+  operatorLocation,
+  gpsStatus = 'acquiring',
+  onForceRequestGps
 }) => {
   const [time, setTime] = useState<string>(new Date().toLocaleTimeString());
+  const [sessionRemaining, setSessionRemaining] = useState<string>('24h 00m');
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const updateTimers = () => {
       setTime(new Date().toLocaleTimeString());
-    }, 1000);
+
+      if (session?.expiresAt) {
+        const diff = session.expiresAt - Date.now();
+        if (diff <= 0) {
+          setSessionRemaining('EXPIRED');
+        } else {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          setSessionRemaining(`${hours}h ${mins.toString().padStart(2, '0')}m`);
+        }
+      }
+    };
+
+    updateTimers();
+    const timer = setInterval(updateTimers, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [session]);
 
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
   const criticalCases = cases.filter(c => c.severityScore >= 4 && c.status !== 'resolved');
@@ -54,30 +75,65 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Center Live Status Counters */}
-      <div className="hidden lg:flex items-center space-x-4">
-        <div className="bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-          <div className="text-left font-mono">
-            <span className="text-[10px] text-slate-400 block font-semibold leading-tight">ACTIVE ALERTS</span>
-            <span className="text-sm font-bold text-slate-100 leading-tight">{activeCases.length}</span>
+      {/* Center Live Status Counters & Real-Time GPS Telemetry */}
+      <div className="hidden lg:flex items-center space-x-3.5">
+        {/* Real-time Operator GPS Indicator */}
+        <div
+          onClick={onForceRequestGps}
+          className={`px-3 py-1.5 rounded-xl border flex items-center space-x-2.5 font-mono cursor-pointer transition-all ${
+            gpsStatus === 'locked' && operatorLocation
+              ? 'bg-slate-950 border-emerald-500/40 hover:border-emerald-400 shadow-md shadow-emerald-950/20'
+              : 'bg-slate-950 border-amber-500/40 hover:border-amber-400 animate-pulse'
+          }`}
+          title="Click to re-verify live device GPS fix"
+        >
+          {gpsStatus === 'locked' ? (
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-ping" />
+          ) : (
+            <Navigation className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+          )}
+          <div className="text-left">
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block leading-tight">
+                C2 STATION LIVE GPS
+              </span>
+              <span className={`text-[8px] px-1 rounded font-bold uppercase ${
+                gpsStatus === 'locked' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+              }`}>
+                {gpsStatus === 'locked' ? 'FIXED' : 'ACQUIRING'}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-slate-100 block leading-tight">
+              {operatorLocation
+                ? `${operatorLocation.lat.toFixed(4)}°N, ${operatorLocation.lng.toFixed(4)}°E (±${operatorLocation.accuracy || 5}m)`
+                : 'Acquiring Real-time GPS...'}
+            </span>
           </div>
         </div>
 
-        <div className="bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-3">
-          <AlertTriangle className="w-4 h-4 text-amber-400" />
-          <div className="text-left font-mono">
-            <span className="text-[10px] text-slate-400 block font-semibold leading-tight">HIGH PRIORITY</span>
-            <span className="text-sm font-bold text-amber-400 leading-tight">{criticalCases.length}</span>
+        {/* 24-Hour Session TTL Badge */}
+        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2 font-mono">
+          <Clock className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="text-left">
+            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">SESSION (1 DAY)</span>
+            <span className="text-xs font-bold text-cyan-300 leading-tight">{sessionRemaining}</span>
           </div>
         </div>
 
-        <div className="bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-3">
-          <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
-          <div className="text-left font-mono">
-            <span className="text-[10px] text-slate-400 block font-semibold leading-tight">GATEWAY STATUS</span>
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 whitespace-nowrap">
-              {isConnected ? 'ONLINE (WS + FIREBASE)' : 'ONLINE (FIREBASE)'}
+        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2.5 font-mono">
+          <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+          <div className="text-left">
+            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">ACTIVE SOS</span>
+            <span className="text-xs font-bold text-rose-300 leading-tight">{activeCases.length}</span>
+          </div>
+        </div>
+
+        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2 font-mono">
+          <Activity className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="text-left">
+            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">GATEWAY</span>
+            <span className="text-[10px] font-bold uppercase text-emerald-300 whitespace-nowrap">
+              {isConnected ? 'ONLINE (WS+SYNC)' : 'ONLINE (FIREBASE)'}
             </span>
           </div>
         </div>
@@ -118,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="h-9 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/50 text-xs px-3.5 rounded-xl inline-flex items-center space-x-1.5 transition-all font-mono font-bold shadow-md shadow-rose-950/40 whitespace-nowrap"
         >
           <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-          <span>ERASE ALL DATA</span>
+          <span>ERASE ALL</span>
         </button>
 
         <button
@@ -140,17 +196,13 @@ export const Header: React.FC<HeaderProps> = ({
         {onLogout && (
           <button
             onClick={onLogout}
-            title="Sign Out"
-            className="h-9 w-9 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/50 rounded-xl inline-flex items-center justify-center transition-all"
+            title="Terminate C2 Session & Log Out"
+            className="h-9 bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs px-3 rounded-xl inline-flex items-center space-x-1 transition-all font-mono font-semibold"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">EXIT</span>
           </button>
         )}
-
-        <div className="hidden xl:block text-right border-l border-slate-800 pl-3.5 font-mono">
-          <span className="text-[10px] text-slate-400 block leading-tight">IST TIME</span>
-          <span className="text-xs font-bold text-cyan-300 tracking-wider leading-tight">{time}</span>
-        </div>
       </div>
     </header>
   );

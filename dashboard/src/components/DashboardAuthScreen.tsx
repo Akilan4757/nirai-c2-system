@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Shield, Lock, Mail, User, LogIn, UserPlus, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Lock, Mail, User, LogIn, UserPlus, AlertCircle, MapPin, Navigation, Compass } from 'lucide-react';
 import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
@@ -9,11 +9,22 @@ export interface UserSession {
   role: 'SUPER ADMIN' | 'OPERATOR' | 'FIELD COMMANDER';
   isSuperAdmin: boolean;
   photoUrl?: string;
+  createdAt: number;
+  expiresAt: number; // 24 hours (86,400,000 ms) from login
+  location?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    timestamp?: number;
+    address?: string;
+  };
 }
 
 interface DashboardAuthScreenProps {
   onLoginSuccess: (session: UserSession) => void;
 }
+
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 1 Day (24 hours)
 
 export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLoginSuccess }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
@@ -24,8 +35,78 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Live GPS Acquisition State
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy?: number; timestamp?: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'locked' | 'denied' | 'unsupported'>('acquiring');
+  const [gpsErrorMsg, setGpsErrorMsg] = useState<string | null>(null);
+
   const SUPER_ADMIN_EMAIL = 'senthilakilan47@gmail.com';
   const SUPER_ADMIN_PASS = 'aaaa';
+
+  // Request high-accuracy GPS coordinates immediately on component mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsStatus('unsupported');
+      setGpsErrorMsg('Browser does not support Geolocation. Real-time GPS is required for C2 access.');
+      return;
+    }
+
+    setGpsStatus('acquiring');
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy),
+          timestamp: pos.timestamp
+        });
+        setGpsStatus('locked');
+        setGpsErrorMsg(null);
+      },
+      (err) => {
+        console.warn('Geolocation acquisition status:', err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsStatus('denied');
+          setGpsErrorMsg('Location access is required to authenticate into the C2 Dashboard. Please enable GPS/Location in your browser.');
+        } else {
+          // If timeout occurred, keep attempting
+          setGpsStatus('acquiring');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  const requestGpsNow = (): Promise<{ lat: number; lng: number; accuracy?: number; timestamp?: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        return reject(new Error('Geolocation is not supported by this browser.'));
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy),
+            timestamp: pos.timestamp
+          };
+          setGpsLocation(loc);
+          setGpsStatus('locked');
+          resolve(loc);
+        },
+        (err) => {
+          setGpsStatus('denied');
+          reject(new Error('Real-time GPS lock is mandatory for C2 dashboard access. Please allow location permissions.'));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +115,21 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
 
     const cleanEmail = email.trim().toLowerCase();
 
+    // Acquire or confirm real-time GPS coordinate fix before granting session
+    let liveCoords = gpsLocation;
+    if (!liveCoords) {
+      try {
+        liveCoords = await requestGpsNow();
+      } catch (locErr: any) {
+        setLoading(false);
+        setError(locErr.message || 'Real-time GPS coordinates required for login.');
+        return;
+      }
+    }
+
+    const now = Date.now();
+    const expiresAt = now + SESSION_TTL_MS; // 1 Day TTL
+
     // Verification check for Super Admin static credential or Firebase Auth
     if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase() && password === SUPER_ADMIN_PASS) {
       const session: UserSession = {
@@ -41,7 +137,15 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
         name: 'Senthil Akilan',
         role: 'SUPER ADMIN',
         isSuperAdmin: true,
-        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+        photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        createdAt: now,
+        expiresAt,
+        location: liveCoords ? {
+          lat: liveCoords.lat,
+          lng: liveCoords.lng,
+          accuracy: liveCoords.accuracy,
+          timestamp: liveCoords.timestamp
+        } : undefined
       };
       setLoading(false);
       onLoginSuccess(session);
@@ -56,7 +160,15 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
         name: res.user.displayName || (isSuper ? 'Senthil Akilan' : email.split('@')[0]),
         role: isSuper ? 'SUPER ADMIN' : 'OPERATOR',
         isSuperAdmin: isSuper,
-        photoUrl: res.user.photoURL || undefined
+        photoUrl: res.user.photoURL || undefined,
+        createdAt: now,
+        expiresAt,
+        location: liveCoords ? {
+          lat: liveCoords.lat,
+          lng: liveCoords.lng,
+          accuracy: liveCoords.accuracy,
+          timestamp: liveCoords.timestamp
+        } : undefined
       };
       setLoading(false);
       onLoginSuccess(session);
@@ -73,6 +185,21 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
 
     const cleanEmail = email.trim().toLowerCase();
 
+    // Acquire real-time GPS coordinate fix
+    let liveCoords = gpsLocation;
+    if (!liveCoords) {
+      try {
+        liveCoords = await requestGpsNow();
+      } catch (locErr: any) {
+        setLoading(false);
+        setError(locErr.message || 'Real-time GPS coordinates required for registration.');
+        return;
+      }
+    }
+
+    const now = Date.now();
+    const expiresAt = now + SESSION_TTL_MS;
+
     try {
       const res = await createUserWithEmailAndPassword(auth, email, password);
       const isSuper = cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
@@ -80,7 +207,15 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
         email: res.user.email || email,
         name: name || res.user.displayName || email.split('@')[0],
         role: isSuper ? 'SUPER ADMIN' : role,
-        isSuperAdmin: isSuper
+        isSuperAdmin: isSuper,
+        createdAt: now,
+        expiresAt,
+        location: liveCoords ? {
+          lat: liveCoords.lat,
+          lng: liveCoords.lng,
+          accuracy: liveCoords.accuracy,
+          timestamp: liveCoords.timestamp
+        } : undefined
       };
       setLoading(false);
       onLoginSuccess(session);
@@ -94,6 +229,20 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
     setError(null);
     setLoading(true);
 
+    let liveCoords = gpsLocation;
+    if (!liveCoords) {
+      try {
+        liveCoords = await requestGpsNow();
+      } catch (locErr: any) {
+        setLoading(false);
+        setError(locErr.message || 'Real-time GPS coordinates required for login.');
+        return;
+      }
+    }
+
+    const now = Date.now();
+    const expiresAt = now + SESSION_TTL_MS;
+
     try {
       const res = await signInWithPopup(auth, googleProvider);
       const userEmail = res.user.email || '';
@@ -103,7 +252,15 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
         name: res.user.displayName || (isSuper ? 'Senthil Akilan' : 'Authorized Operator'),
         role: isSuper ? 'SUPER ADMIN' : 'OPERATOR',
         isSuperAdmin: isSuper,
-        photoUrl: res.user.photoURL || undefined
+        photoUrl: res.user.photoURL || undefined,
+        createdAt: now,
+        expiresAt,
+        location: liveCoords ? {
+          lat: liveCoords.lat,
+          lng: liveCoords.lng,
+          accuracy: liveCoords.accuracy,
+          timestamp: liveCoords.timestamp
+        } : undefined
       };
       setLoading(false);
       onLoginSuccess(session);
@@ -121,12 +278,65 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
 
       <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl relative z-10">
         {/* Header Logo */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-6">
           <div className="w-14 h-14 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/20 mb-3 border border-cyan-400/30">
             <Shield className="w-7 h-7 text-slate-950 font-bold" />
           </div>
           <h1 className="text-2xl font-bold font-display tracking-wider text-slate-100">NIRAI C2 HUB</h1>
           <p className="text-xs text-slate-400 font-mono mt-1">Networked Intelligent Rapid-response Infrastructure</p>
+          <div className="mt-2 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[10px] font-mono text-cyan-400">
+            <span>SESSION VALIDITY: 24 HOURS</span>
+          </div>
+        </div>
+
+        {/* Real-time GPS Access Verification Box */}
+        <div className={`mb-6 p-3 rounded-xl border font-mono text-xs transition-all ${
+          gpsStatus === 'locked' && gpsLocation
+            ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+            : gpsStatus === 'denied'
+            ? 'bg-rose-950/40 border-rose-500/50 text-rose-300'
+            : 'bg-cyan-950/30 border-cyan-500/40 text-cyan-300'
+        }`}>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center space-x-2">
+              {gpsStatus === 'locked' ? (
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              ) : (
+                <Navigation className="w-4 h-4 text-cyan-400 animate-spin" />
+              )}
+              <span className="font-bold uppercase tracking-wider text-[11px]">
+                {gpsStatus === 'locked' ? 'REAL-TIME GPS TELEMETRY LOCKED' : 'MANDATORY GPS POSITIONING'}
+              </span>
+            </div>
+            {gpsStatus === 'denied' && (
+              <button
+                type="button"
+                onClick={() => requestGpsNow().catch(console.error)}
+                className="text-[10px] bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded font-bold uppercase transition-all"
+              >
+                GRANT ACCESS
+              </button>
+            )}
+          </div>
+
+          {gpsStatus === 'locked' && gpsLocation ? (
+            <div className="text-[11px] space-y-0.5 text-emerald-200/90 font-mono">
+              <div className="flex items-center justify-between">
+                <span>Coordinates:</span>
+                <span className="font-bold text-white">
+                  {gpsLocation.lat.toFixed(5)}°, {gpsLocation.lng.toFixed(5)}°
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-emerald-300/80">
+                <span>Accuracy: ±{gpsLocation.accuracy}m</span>
+                <span className="text-emerald-400 font-bold">100% LIVE GPS</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[11px] text-slate-300">
+              {gpsErrorMsg || 'Acquiring real-time high-accuracy satellite GPS coordinates from device sensor...'}
+            </div>
+          )}
         </div>
 
         {/* Tab Switcher */}
@@ -230,7 +440,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
             disabled={loading}
             className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs tracking-wider uppercase transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 mt-2"
           >
-            {loading ? 'AUTHENTICATING...' : activeTab === 'login' ? 'SIGN IN TO DASHBOARD' : 'CREATE ACCOUNT & ENTER'}
+            {loading ? 'AUTHENTICATING & ACQUIRING GPS...' : activeTab === 'login' ? 'SIGN IN WITH LIVE GPS' : 'CREATE ACCOUNT & VERIFY'}
           </button>
         </form>
 

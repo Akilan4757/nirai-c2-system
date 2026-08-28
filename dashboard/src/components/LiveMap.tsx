@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap, Polyg
 import L from 'leaflet';
 import { Case, Officer, Drone } from '../types';
 import { theme } from '../theme';
+import { Navigation, Crosshair, Radio, Shield, MapPin } from 'lucide-react';
 
 interface LiveMapProps {
   cases: Case[];
@@ -10,6 +11,9 @@ interface LiveMapProps {
   drones: Drone[];
   selectedCaseId: string | null;
   onSelectCase: (caseId: string) => void;
+  operatorLocation?: { lat: number; lng: number; accuracy?: number; timestamp?: number } | null;
+  gpsStatus?: 'acquiring' | 'locked' | 'denied' | 'unsupported';
+  onForceRequestGps?: () => void;
 }
 
 // Utility to check Red Zone collision
@@ -24,7 +28,7 @@ const createSvgIcon = (bgColor: string, borderColor: string, symbol: string, isP
     ? `<div style="position:absolute; inset:-6px; border-radius:9999px; background-color:${borderColor}; opacity:0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>` 
     : '';
   const svg = `
-    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:9999px; background-color:${bgColor}; border:3px solid ${borderColor}; box-shadow: 0 0 12px ${borderColor}; color:white; font-weight:bold; font-family:${theme.typography.fontMono}; font-size:10px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:9999px; background-color:${bgColor}; border:3px solid ${borderColor}; box-shadow: 0 0 14px ${borderColor}; color:white; font-weight:bold; font-family:${theme.typography.fontMono}; font-size:10px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">
       ${pulseHtml}
       <span style="position:relative; z-index:10;">${symbol}</span>
     </div>
@@ -36,6 +40,21 @@ const createSvgIcon = (bgColor: string, borderColor: string, symbol: string, isP
     iconAnchor: [19, 19],
   });
 };
+
+// Operator Live GPS HQ Icon
+const operatorGpsIcon = L.divIcon({
+  html: `
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:44px; height:44px;">
+      <div style="position:absolute; inset:0; border-radius:9999px; background-color:#06b6d4; opacity:0.35; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+      <div style="position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background-color:#0f172a; border:3px solid #22d3ee; box-shadow: 0 0 16px #06b6d4; color:#22d3ee; font-weight:bold; font-family:${theme.typography.fontMono}; font-size:11px;">
+        <span style="position:relative; z-index:10;">C2</span>
+      </div>
+    </div>
+  `,
+  className: 'custom-operator-icon',
+  iconSize: [44, 44],
+  iconAnchor: [22, 22],
+});
 
 // Distinct Map Markers using theme colors
 const caseIconUnassigned = createSvgIcon(theme.colors.background.surface, theme.colors.status.critical, 'SOS', true);
@@ -54,13 +73,25 @@ const resizeHandleIcon = L.divIcon({
 });
 
 // Custom component to manage map centering and viewport resets
-const MapRecenter = ({ caseItem }: { caseItem: Case | null }) => {
+const MapRecenter = ({
+  caseItem,
+  operatorLocation,
+  recenterTrigger
+}: {
+  caseItem: Case | null;
+  operatorLocation?: { lat: number; lng: number } | null;
+  recenterTrigger: number;
+}) => {
   const map = useMap();
+
   useEffect(() => {
     if (caseItem) {
       map.flyTo([caseItem.location.lat, caseItem.location.lng], 15, { animate: true, duration: 1.2 });
+    } else if (operatorLocation) {
+      map.flyTo([operatorLocation.lat, operatorLocation.lng], 15, { animate: true, duration: 1.2 });
     }
-  }, [caseItem, map]);
+  }, [caseItem, operatorLocation, recenterTrigger, map]);
+
   return null;
 };
 
@@ -96,25 +127,12 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   drones,
   selectedCaseId,
   onSelectCase,
+  operatorLocation,
+  gpsStatus = 'acquiring',
+  onForceRequestGps
 }) => {
-  const defaultCenter: [number, number] = [13.0827, 80.2707]; // Fallback: Chennai Central
-  const [deviceCenter, setDeviceCenter] = useState<[number, number]>(defaultCenter);
   const [hudCollapsed, setHudCollapsed] = useState(false);
-
-  // Request device geolocation on mount
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setDeviceCenter([pos.coords.latitude, pos.coords.longitude]);
-        },
-        () => {
-          console.warn('Geolocation denied — using default center');
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    }
-  }, []);
+  const [recenterCounter, setRecenterCounter] = useState(0);
 
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
   const selectedCase = activeCases.find(c => c.id === selectedCaseId) || (activeCases.length > 0 ? activeCases[0] : null);
@@ -201,11 +219,18 @@ export const LiveMap: React.FC<LiveMapProps> = ({
     }
   };
 
+  // Center coordinate determination (uses live operator coordinates first, or active case)
+  const initialMapCenter: [number, number] = operatorLocation 
+    ? [operatorLocation.lat, operatorLocation.lng]
+    : selectedCase 
+    ? [selectedCase.location.lat, selectedCase.location.lng]
+    : [13.0827, 80.2707];
+
   return (
     <div className="relative w-full h-full bg-slate-950">
       <MapContainer
-        center={selectedCase ? [selectedCase.location.lat, selectedCase.location.lng] : deviceCenter}
-        zoom={selectedCase ? 15 : 13}
+        center={initialMapCenter}
+        zoom={15}
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
       >
@@ -214,7 +239,11 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapRecenter caseItem={selectedCase} />
+        <MapRecenter
+          caseItem={selectedCase}
+          operatorLocation={operatorLocation}
+          recenterTrigger={recenterCounter}
+        />
 
         {/* DGCA Airspace Overlays */}
         {showRedZone && (
@@ -260,6 +289,74 @@ export const LiveMap: React.FC<LiveMapProps> = ({
               </div>
             </Tooltip>
           </Polygon>
+        )}
+
+        {/* Real-time Operator C2 Command Node Marker & Accuracy Ring */}
+        {operatorLocation && (
+          <React.Fragment>
+            <Marker
+              position={[operatorLocation.lat, operatorLocation.lng]}
+              icon={operatorGpsIcon}
+            >
+              <Popup>
+                <div className="p-2.5 font-sans w-64 bg-slate-900 text-slate-100 rounded-xl border border-cyan-500/40 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2">
+                    <span className="font-mono text-xs font-bold text-cyan-400 flex items-center space-x-1">
+                      <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>C2 COMMAND POST</span>
+                    </span>
+                    <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-mono uppercase font-bold">
+                      LIVE GPS FIX
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-white">Dashboard Operator Terminal</p>
+                  <div className="mt-2 text-[11px] font-mono space-y-1 bg-slate-950 p-2 rounded border border-slate-800">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Lat:</span>
+                      <span className="text-cyan-300 font-bold">{operatorLocation.lat.toFixed(6)}°</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Lng:</span>
+                      <span className="text-cyan-300 font-bold">{operatorLocation.lng.toFixed(6)}°</span>
+                    </div>
+                    {operatorLocation.accuracy && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Accuracy:</span>
+                        <span className="font-bold">±{operatorLocation.accuracy}m</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRecenterCounter(prev => prev + 1)}
+                    className="mt-2.5 w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono py-1.5 rounded transition-all flex items-center justify-center space-x-1.5"
+                  >
+                    <Crosshair className="w-3.5 h-3.5" />
+                    <span>CENTER C2 TERMINAL</span>
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+
+            {operatorLocation.accuracy && (
+              <Circle
+                center={[operatorLocation.lat, operatorLocation.lng]}
+                radius={Math.max(operatorLocation.accuracy, 25)}
+                pathOptions={{
+                  color: '#06b6d4',
+                  fillColor: '#06b6d4',
+                  fillOpacity: 0.12,
+                  weight: 1.5,
+                  dashArray: '3, 6'
+                }}
+              >
+                <Tooltip permanent direction="bottom" opacity={0.7} className="custom-radius-tooltip">
+                  <span className="font-mono text-[9px] bg-slate-950/90 text-cyan-300 border border-slate-700 px-1.5 py-0.5 rounded">
+                    GPS Accuracy Radius (±{operatorLocation.accuracy}m)
+                  </span>
+                </Tooltip>
+              </Circle>
+            )}
+          </React.Fragment>
         )}
 
         {/* SOS Cases */}
@@ -359,8 +456,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           );
         })}
 
-        {/* Police Officers — only show when active cases exist */}
-        {hasActiveCases && officers.map((o) => (
+        {/* Police Officers */}
+        {officers.map((o) => (
           <Marker
             key={o.userId}
             position={[o.location.lat, o.location.lng]}
@@ -375,8 +472,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           </Marker>
         ))}
 
-        {/* Drones — only show when active cases exist */}
-        {hasActiveCases && drones.map((d) => {
+        {/* Drones */}
+        {drones.map((d) => {
           const icon = d.type === 'mother' ? motherDroneIcon : childDroneIcon;
           return (
             <Marker
@@ -411,20 +508,71 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         })}
       </MapContainer>
 
+      {/* Floating GPS Snap Button */}
+      <div className="absolute bottom-6 right-6 z-[1000] flex flex-col space-y-2">
+        <button
+          onClick={() => setRecenterCounter(prev => prev + 1)}
+          className="bg-slate-900/95 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 border border-cyan-500/50 p-2.5 rounded-xl shadow-2xl backdrop-blur-md transition-all flex items-center space-x-2 font-mono text-xs font-bold"
+          title="Pan to live C2 Station GPS position"
+        >
+          <Crosshair className="w-4 h-4 text-cyan-400 animate-spin-slow" />
+          <span>RECENTER C2 GPS</span>
+        </button>
+      </div>
+
       {/* Control Room Map HUD Overlay — Collapsible */}
-      <div className={`absolute top-3 left-3 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-xl z-[1000] text-xs font-mono shadow-2xl transition-all ${hudCollapsed ? 'w-auto' : 'w-56'}`}>
+      <div className={`absolute top-3 left-3 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-xl z-[1000] text-xs font-mono shadow-2xl transition-all ${hudCollapsed ? 'w-auto' : 'w-60'}`}>
         <div
           className="flex items-center justify-between px-3 py-2 cursor-pointer select-none hover:bg-slate-800/50 rounded-t-xl"
           onClick={() => setHudCollapsed(!hudCollapsed)}
         >
-          <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">MAP CONTROLS</span>
+          <div className="flex items-center space-x-1.5">
+            <Radio className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-300 text-[10px] uppercase font-bold tracking-wider">C2 MAP TELEMETRY</span>
+          </div>
           <span className="text-slate-500 text-[10px]">{hudCollapsed ? '▶' : '▼'}</span>
         </div>
 
         {!hudCollapsed && (
           <div className="px-3 pb-3 space-y-3">
+            {/* Live GPS Telemetry Status */}
+            <div className={`p-2 rounded-lg border text-[10px] font-mono ${
+              gpsStatus === 'locked' && operatorLocation
+                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                : 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+            }`}>
+              <div className="flex items-center justify-between font-bold mb-1">
+                <span>🛰️ OPERATOR GPS</span>
+                <span className="uppercase text-[9px]">
+                  {gpsStatus === 'locked' ? '100% LIVE FIX' : 'ACQUIRING'}
+                </span>
+              </div>
+              {operatorLocation ? (
+                <div>
+                  <span className="block text-slate-100">{operatorLocation.lat.toFixed(5)}°, {operatorLocation.lng.toFixed(5)}°</span>
+                  <span className="text-[9px] text-emerald-400">Accuracy: ±{operatorLocation.accuracy || 5}m</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span>Awaiting Satellite Lock...</span>
+                  {onForceRequestGps && (
+                    <button
+                      onClick={onForceRequestGps}
+                      className="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-bold"
+                    >
+                      LOCK
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Color codes */}
             <div className="space-y-1.5">
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 border border-cyan-200 shadow-[0_0_8px_#06b6d4] animate-ping" />
+                <span className="text-cyan-300 font-bold text-[11px]">C2 Command Post (You)</span>
+              </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-rose-600 border border-rose-400 shadow-[0_0_6px_#ef4444]" />
