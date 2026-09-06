@@ -6,17 +6,85 @@ import { LiveMap } from './components/LiveMap';
 import { AlertQueue } from './components/AlertQueue';
 import { PoliceTracker } from './components/PoliceTracker';
 import { DroneControlPanel } from './components/DroneControlPanel';
+import { IncidentInspectorCard } from './components/IncidentInspectorCard';
+import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { AuditLogModal } from './components/AuditLogModal';
 import { SimulatorControls } from './components/SimulatorControls';
 import { ConnectedDevicesPanel } from './components/ConnectedDevicesPanel';
 import { DashboardAuthScreen, UserSession } from './components/DashboardAuthScreen';
 import { SuperAdminModal } from './components/SuperAdminModal';
 import { Case, Officer, Drone, AuditLog } from './types';
-import { AlertCircle, Navigation, MapPin, Crosshair } from 'lucide-react';
+import { soundFX } from './utils/audioEffects';
+import { 
+  AlertCircle, 
+  Navigation, 
+  MapPin, 
+  Crosshair, 
+  PanelLeft, 
+  PanelRight, 
+  ShieldCheck, 
+  Minimize2, 
+  Maximize2, 
+  Video, 
+  Layers,
+  Sparkles
+} from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000`;
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 1 Day
+
+// Picture-in-Picture Drone Optical HUD Window
+const FloatingDronePiP: React.FC<{
+  drone: Drone;
+  onClose?: () => void;
+}> = ({ drone, onClose }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  return (
+    <div className="apple-glass rounded-2xl overflow-hidden shadow-2xl border border-white/[0.15] transition-all select-none animate-slideInRight">
+      <div className="px-3 py-1.5 bg-black/60 border-b border-white/[0.08] flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <span className="w-2 h-2 rounded-full bg-[#ff453a] animate-apple-pulse"></span>
+          <span className="text-[11px] font-semibold text-white">Live Recon HUD</span>
+          <span className="text-[10px] text-[#2997ff] apple-tabular">{drone.name}</span>
+        </div>
+        <div className="flex items-center space-x-1.5">
+          <button
+            onClick={() => setIsMinimized(!isMinimized)}
+            className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
+            title={isMinimized ? "Expand PiP" : "Minimize PiP"}
+          >
+            {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+      {!isMinimized && (
+        <div className="relative w-64 h-36 bg-black">
+          {drone.streamUrl?.startsWith('data:image') ? (
+            <img src={drone.streamUrl} alt="Drone Feed" className="w-full h-full object-cover" />
+          ) : (
+            <video src={drone.streamUrl || undefined} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+          )}
+          <div className="absolute top-2 left-2 text-[9px] bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-full text-[#30d158] border border-white/10 apple-tabular flex items-center space-x-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#30d158] animate-pulse"></span>
+            <span>1080p • {drone.batteryPct}% BAT • {drone.altitudeMeters}m</span>
+          </div>
+          <div className="absolute bottom-2 right-2 text-[9px] bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-full text-white/90 border border-white/10 apple-tabular">
+            {drone.location.lat.toFixed(4)}°, {drone.location.lng.toFixed(4)}°
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export function App() {
   const [userSession, setUserSession] = useState<UserSession | null>(() => {
@@ -36,13 +104,12 @@ export function App() {
     }
   });
 
-  // Real-time GPS state — starts null, NO hardcoded default
+  // Real-time GPS state
   const [operatorLocation, setOperatorLocation] = useState<{ lat: number; lng: number; accuracy?: number; timestamp?: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'locked' | 'denied' | 'unsupported' | 'manual_pick'>('acquiring');
-
-  // Manual location picker state (fallback when GPS denied)
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  // Core Data States
   const [cases, setCases] = useState<Case[]>([]);
   const [officers, setOfficers] = useState<Officer[]>([]);
   const [drones, setDrones] = useState<Drone[]>([]);
@@ -50,20 +117,32 @@ export function App() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // UI Spatial States (Spatial Full-bleed Mode)
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+  const [isRightInspectorOpen, setIsRightInspectorOpen] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState<'inspector' | 'police'>('inspector');
+  const [showConnectedNodes, setShowConnectedNodes] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(soundFX.getMuted());
+  const [showPiPVideo, setShowPiPVideo] = useState(true);
+
+  // Modals
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [dispatchModalCaseId, setDispatchModalCaseId] = useState<string | null>(null);
 
-  // Ref to hold the latest session for the GPS callback without stale closure
+  // Refs for callbacks & tracking new cases
   const sessionRef = useRef(userSession);
   useEffect(() => { sessionRef.current = userSession; }, [userSession]);
 
   const operatorLocationRef = useRef(operatorLocation);
   useEffect(() => { operatorLocationRef.current = operatorLocation; }, [operatorLocation]);
 
-  // GPS acquisition — uses refs to avoid stale closure on userSession
+  const knownCaseIdsRef = useRef<Set<string>>(new Set());
+
+  // GPS acquisition
   const acquireLiveGps = useCallback(() => {
     if (!navigator.geolocation) {
       setGpsStatus('unsupported');
@@ -82,7 +161,6 @@ export function App() {
         setGpsStatus('locked');
         setShowLocationPicker(false);
 
-        // Persist fresh coords into session via ref
         const sess = sessionRef.current;
         if (sess) {
           const updated = { ...sess, location: loc };
@@ -93,7 +171,6 @@ export function App() {
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
           setGpsStatus('denied');
-          // Only show picker if we still have no location at all
           if (!operatorLocationRef.current) {
             setShowLocationPicker(true);
           }
@@ -103,7 +180,7 @@ export function App() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
-  }, []); // no deps — uses refs internally
+  }, []);
 
   // Continuous GPS watcher + session TTL checker
   useEffect(() => {
@@ -116,7 +193,6 @@ export function App() {
       }
     }, 30000);
 
-    // Fire initial GPS request
     acquireLiveGps();
 
     let watchId: number | null = null;
@@ -151,7 +227,7 @@ export function App() {
     };
   }, [acquireLiveGps]);
 
-  // Handler for when user manually picks location on the map
+  // Handler for manual location pick
   const handleManualLocationPick = (lat: number, lng: number) => {
     const loc = { lat, lng, accuracy: 0, timestamp: Date.now() };
     setOperatorLocation(loc);
@@ -166,7 +242,7 @@ export function App() {
     }
   };
 
-  // Firestore + WS listeners
+  // Firestore + WebSocket listeners
   useEffect(() => {
     let unsubscribeCases: () => void = () => {};
     let unsubscribeAudit: () => void = () => {};
@@ -183,7 +259,7 @@ export function App() {
               reporterName: data.reporterName || 'Civilian User',
               reporterPhone: data.reporterPhone || '+919876543210',
               status: data.status || 'raised',
-              location: data.location, // NO hardcoded fallback — use real data only
+              location: data.location,
               address: data.address || 'Emergency SOS Location',
               severityScore: data.severityScore || 5,
               createdAt: data.createdAt || new Date().toISOString(),
@@ -195,6 +271,15 @@ export function App() {
               mediaUrl: data.mediaUrl || undefined
             } as Case;
           }).filter(c => c.location && typeof c.location.lat === 'number' && typeof c.location.lng === 'number');
+
+          // Sensory chime on newly arrived SOS
+          fbCases.forEach(c => {
+            if (!knownCaseIdsRef.current.has(c.id) && c.status === 'raised') {
+              soundFX.playSosChime();
+            }
+            knownCaseIdsRef.current.add(c.id);
+          });
+
           setCases(prev => {
             const fbMap = new Map<string, Case>();
             fbCases.forEach(c => fbMap.set(c.id, c));
@@ -243,8 +328,10 @@ export function App() {
             setAuditLogs(msg.payload.auditLogs);
             if (msg.payload.cases.length > 0) setSelectedCaseId(p => p || msg.payload.cases[0].id);
           } else if (msg.type === 'CASE_CREATED') {
+            soundFX.playSosChime();
             setCases(prev => prev.some(c => c.id === msg.payload.id) ? prev.map(c => c.id === msg.payload.id ? msg.payload : c) : [msg.payload, ...prev]);
             setSelectedCaseId(msg.payload.id);
+            setIsRightInspectorOpen(true);
           } else if (msg.type === 'CASE_UPDATED') {
             setCases(prev => prev.map(c => c.id === msg.payload.id ? msg.payload : c));
           } else if (msg.type === 'OFFICER_LOCATION_UPDATED') {
@@ -272,28 +359,114 @@ export function App() {
     return () => { shouldReconnect = false; ws?.close(); unsubscribeCases(); unsubscribeAudit(); };
   }, []);
 
+  // Keyboard Shortcuts Engine (Raycast / Apple Navigation)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+
+      // Command + K or Ctrl + K -> Open Command Palette
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+        soundFX.playClickTick();
+        return;
+      }
+
+      // [ -> Toggle Left Alert Queue
+      if (e.key === '[') {
+        e.preventDefault();
+        setIsLeftSidebarOpen(prev => !prev);
+        soundFX.playClickTick();
+        return;
+      }
+
+      // ] -> Toggle Right Inspector
+      if (e.key === ']') {
+        e.preventDefault();
+        setIsRightInspectorOpen(prev => !prev);
+        soundFX.playClickTick();
+        return;
+      }
+
+      // Esc -> Close open modal or deselect
+      if (e.key === 'Escape') {
+        if (isCommandPaletteOpen) setIsCommandPaletteOpen(false);
+        else if (isAuditModalOpen) setIsAuditModalOpen(false);
+        else if (isSimulatorOpen) setIsSimulatorOpen(false);
+        else if (isSuperAdminModalOpen) setIsSuperAdminModalOpen(false);
+        else if (dispatchModalCaseId) setDispatchModalCaseId(null);
+        else if (selectedCaseId) setSelectedCaseId(null);
+        return;
+      }
+
+      // J -> Next incident in queue
+      if (e.key.toLowerCase() === 'j') {
+        const active = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
+        if (active.length > 0) {
+          const idx = active.findIndex(c => c.id === selectedCaseId);
+          const nextIdx = (idx + 1) % active.length;
+          setSelectedCaseId(active[nextIdx].id);
+          setIsRightInspectorOpen(true);
+          soundFX.playClickTick();
+        }
+        return;
+      }
+
+      // K -> Previous incident in queue
+      if (e.key.toLowerCase() === 'k') {
+        const active = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
+        if (active.length > 0) {
+          const idx = active.findIndex(c => c.id === selectedCaseId);
+          const prevIdx = (idx - 1 + active.length) % active.length;
+          setSelectedCaseId(active[prevIdx].id);
+          setIsRightInspectorOpen(true);
+          soundFX.playClickTick();
+        }
+        return;
+      }
+
+      // D -> Quick Dispatch Drone to current incident
+      if (e.key.toLowerCase() === 'd' && selectedCaseId) {
+        setDispatchModalCaseId(selectedCaseId);
+        soundFX.playClickTick();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cases, selectedCaseId, isCommandPaletteOpen, isAuditModalOpen, isSimulatorOpen, isSuperAdminModalOpen, dispatchModalCaseId]);
+
   const selectedCase = cases.find(c => c.id === selectedCaseId) || null;
+  const activeAirborneDrone = drones.find(d => (d.status === 'airborne' || d.streamUrl) && d.type === 'child');
 
   const handleVerifyCase = (caseId: string, isFalseAlarm: boolean) => {
+    soundFX.playClickTick();
     fetch(`${API_BASE}/v1/cases/${caseId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFalseAlarm, notes: 'Verified by operator via call-back.' }) });
   };
   const handleAssignOfficer = (caseId: string, officerUserId: string) => {
+    soundFX.playDispatchConfirm();
     fetch(`${API_BASE}/v1/cases/${caseId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ officerUserId }) });
   };
   const handleConfirmDispatch = (caseId: string, motherDroneId: string, airspaceConfirmed: boolean) => {
+    soundFX.playDispatchConfirm();
     fetch(`${API_BASE}/v1/cases/${caseId}/dispatch-drone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motherDroneId, operatorId: 'Op-#4', airspaceConfirmed }) });
     setDispatchModalCaseId(null);
   };
   const handleResolveCase = async (caseId: string) => {
+    soundFX.playResolveChime();
     setCases(prev => prev.filter(c => c.id !== caseId));
     try { await updateDoc(doc(db, 'cases', caseId), { status: 'resolved' }); } catch (err) { try { await deleteDoc(doc(db, 'cases', caseId)); } catch (e) {} }
     fetch(`${API_BASE}/v1/cases/${caseId}/resolve`, { method: 'POST' }).catch(() => {});
   };
   const handleTriggerSOS = (reporterName: string, address: string, lat: number, lng: number) => {
+    soundFX.playSosChime();
     fetch(`${API_BASE}/v1/sos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reporterName, address, lat, lng }) }).catch(() => {});
   };
   const handleSimulateOfficerMove = () => {
-    if (!operatorLocation) return; // No officer sim without a real base location
+    if (!operatorLocation) return;
     const lat = operatorLocation.lat + (Math.random() - 0.5) * 0.01;
     const lng = operatorLocation.lng + (Math.random() - 0.5) * 0.01;
     fetch(`${API_BASE}/v1/officers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'usr-p1', lat, lng, onDuty: true }) }).catch(() => {});
@@ -319,6 +492,12 @@ export function App() {
     }
   };
 
+  const handleToggleAudio = () => {
+    const isMuted = soundFX.toggleMute();
+    setIsAudioMuted(isMuted);
+    if (!isMuted) soundFX.playClickTick();
+  };
+
   if (!userSession) {
     return (
       <DashboardAuthScreen
@@ -335,7 +514,8 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#000000] text-[#f5f5f7]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#000000] text-[#f5f5f7] select-none">
+      {/* Top Apple Frosted Navigation Bar */}
       <Header
         cases={cases}
         isConnected={isConnected}
@@ -343,6 +523,11 @@ export function App() {
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onClearAllRecords={handleClearAllRecords}
         onOpenSuperAdminModal={() => setIsSuperAdminModalOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        sidebarCollapsed={!isLeftSidebarOpen}
+        onToggleSidebar={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+        isAudioMuted={isAudioMuted}
+        onToggleAudio={handleToggleAudio}
         session={userSession}
         operatorLocation={operatorLocation}
         gpsStatus={gpsStatus}
@@ -354,9 +539,9 @@ export function App() {
         }}
       />
 
-      {/* GPS denied/unsupported banner — prompt user to pick location manually */}
+      {/* GPS denied/unsupported alert banner */}
       {(gpsStatus === 'denied' || gpsStatus === 'unsupported') && !operatorLocation && (
-        <div className="bg-[#ff453a]/15 border-b border-[#ff453a]/25 px-6 py-2 flex items-center justify-between text-xs text-[#f5f5f7]">
+        <div className="bg-[#ff453a]/15 border-b border-[#ff453a]/25 px-6 py-2 flex items-center justify-between text-xs text-[#f5f5f7] z-30">
           <div className="flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 text-[#ff453a]" />
             <span>GPS access was denied. Enable browser location or select your station position on the map.</span>
@@ -368,7 +553,221 @@ export function App() {
         </div>
       )}
 
-      {/* Manual Location Picker Modal */}
+      {/* Full-Bleed Spatial Map Canvas + Floating Chrome Overlay */}
+      <main className="flex-1 relative w-full h-full overflow-hidden">
+        {/* Layer 0: Full-Screen Live Map Canvas */}
+        <div className="absolute inset-0 z-0">
+          <LiveMap
+            cases={cases}
+            officers={officers}
+            drones={drones}
+            selectedCaseId={selectedCaseId}
+            onSelectCase={(id) => {
+              setSelectedCaseId(id);
+              setIsRightInspectorOpen(true);
+            }}
+            operatorLocation={operatorLocation}
+            gpsStatus={gpsStatus}
+            onForceRequestGps={acquireLiveGps}
+          />
+        </div>
+
+        {/* Floating Left Drawer: Incident Dispatch Queue */}
+        <aside
+          className={`absolute top-3 left-3 bottom-3 z-20 w-80 md:w-96 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 ease-out ${
+            isLeftSidebarOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-[110%] opacity-0 pointer-events-none'
+          }`}
+        >
+          <AlertQueue
+            cases={cases}
+            selectedCaseId={selectedCaseId}
+            onSelectCase={(id) => {
+              setSelectedCaseId(id);
+              setIsRightInspectorOpen(true);
+            }}
+            onVerifyCase={handleVerifyCase}
+            onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
+            onCancelCase={handleCancelCase}
+          />
+        </aside>
+
+        {/* Floating Left Drawer Open Pill (When Drawer is Collapsed) */}
+        {!isLeftSidebarOpen && (
+          <button
+            onClick={() => {
+              soundFX.playClickTick();
+              setIsLeftSidebarOpen(true);
+            }}
+            className="absolute top-3 left-3 z-20 apple-glass rounded-2xl px-3.5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center space-x-2 hover:border-[#2997ff]/60 transition-all cursor-pointer group"
+            title="Open Incidents ([)"
+          >
+            <PanelLeft className="w-4 h-4 text-[#2997ff] group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-semibold text-white">Incidents</span>
+            <span className="text-[10px] bg-[#ff453a]/20 text-[#ff453a] border border-[#ff453a]/30 px-2 py-0.5 rounded-full font-semibold apple-tabular">
+              {cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm').length}
+            </span>
+          </button>
+        )}
+
+        {/* Floating Top Floating Utility Bar (Connected Nodes Pill + Toggle) */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center space-x-2">
+          <button
+            onClick={() => setShowConnectedNodes(!showConnectedNodes)}
+            className="apple-glass rounded-full px-3.5 py-1.5 shadow-xl border border-white/[0.12] flex items-center space-x-2 text-xs font-medium hover:border-[#2997ff]/60 transition-all"
+          >
+            <Layers className="w-3.5 h-3.5 text-[#2997ff]" />
+            <span className="text-white/90">Mesh Nodes</span>
+            <span className="bg-white/[0.08] text-[#30d158] text-[10px] px-2 py-0.5 rounded-full font-medium apple-tabular">
+              {cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm').length + officers.filter(o => o.onDuty).length + drones.length} Online
+            </span>
+          </button>
+        </div>
+
+        {/* Expandable Connected Nodes Modal / Drawer */}
+        {showConnectedNodes && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-full max-w-2xl px-4 animate-scaleUp">
+            <ConnectedDevicesPanel
+              cases={cases}
+              officers={officers}
+              drones={drones}
+              isConnected={isConnected}
+              onClearAll={handleClearAllRecords}
+              operatorLocation={operatorLocation}
+              gpsStatus={gpsStatus}
+            />
+          </div>
+        )}
+
+        {/* Floating Right Panel: Single-Point Incident Inspector OR Patrol Units Tracker */}
+        {isRightInspectorOpen && (
+          <aside className="absolute top-3 right-3 bottom-3 z-20 flex flex-col items-end space-y-2 pointer-events-auto">
+            {/* Panel Mode Switcher Pill */}
+            <div className="apple-glass rounded-full p-1 border border-white/[0.12] flex items-center space-x-1 shadow-lg">
+              <button
+                onClick={() => {
+                  soundFX.playClickTick();
+                  setRightPanelTab('inspector');
+                }}
+                className={`text-[11px] px-3 py-1 rounded-full font-medium transition-all ${
+                  rightPanelTab === 'inspector'
+                    ? 'bg-[#2997ff] text-white shadow-sm'
+                    : 'text-[#86868b] hover:text-white'
+                }`}
+              >
+                Incident Inspector
+              </button>
+              <button
+                onClick={() => {
+                  soundFX.playClickTick();
+                  setRightPanelTab('police');
+                }}
+                className={`text-[11px] px-3 py-1 rounded-full font-medium transition-all ${
+                  rightPanelTab === 'police'
+                    ? 'bg-[#0a84ff] text-white shadow-sm'
+                    : 'text-[#86868b] hover:text-white'
+                }`}
+              >
+                Patrol Units ({officers.filter(o => o.onDuty).length})
+              </button>
+              <button
+                onClick={() => setIsRightInspectorOpen(false)}
+                className="w-6 h-6 rounded-full hover:bg-white/[0.1] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
+                title="Collapse ([])"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Active Tab View */}
+            {rightPanelTab === 'inspector' ? (
+              selectedCase ? (
+                <IncidentInspectorCard
+                  selectedCase={selectedCase}
+                  officers={officers}
+                  drones={drones}
+                  onClose={() => setIsRightInspectorOpen(false)}
+                  onVerifyCase={handleVerifyCase}
+                  onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
+                  onAssignOfficer={handleAssignOfficer}
+                  onResolveCase={handleResolveCase}
+                  onCancelCase={handleCancelCase}
+                />
+              ) : (
+                <div className="w-80 apple-glass rounded-3xl p-6 shadow-2xl border border-white/[0.12] text-center space-y-2">
+                  <p className="text-xs text-white/80 font-medium">No Incident Selected</p>
+                  <p className="text-[11px] text-[#86868b]">Select a case from the dispatch queue or click any SOS marker on the map.</p>
+                </div>
+              )
+            ) : (
+              <div className="w-80 md:w-96 h-[calc(100vh-140px)] rounded-3xl overflow-hidden shadow-2xl border border-white/[0.12]">
+                <PoliceTracker
+                  officers={officers}
+                  selectedCase={selectedCase}
+                  onAssignOfficer={handleAssignOfficer}
+                />
+              </div>
+            )}
+          </aside>
+        )}
+
+        {/* Floating Right Open Pill (When Right Panel is Closed) */}
+        {!isRightInspectorOpen && (
+          <button
+            onClick={() => {
+              soundFX.playClickTick();
+              setIsRightInspectorOpen(true);
+            }}
+            className="absolute top-3 right-3 z-20 apple-glass rounded-2xl px-3.5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center space-x-2 hover:border-[#2997ff]/60 transition-all cursor-pointer group"
+            title="Open Inspector (])"
+          >
+            <span className="text-xs font-semibold text-white">Inspector</span>
+            <PanelRight className="w-4 h-4 text-[#2997ff] group-hover:scale-110 transition-transform" />
+          </button>
+        )}
+
+        {/* Floating Picture-in-Picture (PiP) Live Drone Camera Feed */}
+        {showPiPVideo && activeAirborneDrone && (
+          <div className="absolute bottom-20 right-4 z-30">
+            <FloatingDronePiP
+              drone={activeAirborneDrone}
+              onClose={() => setShowPiPVideo(false)}
+            />
+          </div>
+        )}
+
+        {/* Floating Bottom Center: Autonomous Mother-Child Drone Fleet Dock */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-4xl px-4 pointer-events-auto">
+          <DroneControlPanel
+            drones={drones}
+            selectedCase={selectedCase}
+            dispatchModalCaseId={dispatchModalCaseId}
+            onCloseDispatchModal={() => setDispatchModalCaseId(null)}
+            onConfirmDispatch={handleConfirmDispatch}
+            onResolveCase={handleResolveCase}
+          />
+        </div>
+      </main>
+
+      {/* Raycast / Spotlight Command Palette (⌘K / Ctrl+K) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        cases={cases}
+        officers={officers}
+        drones={drones}
+        onSelectCase={(id) => {
+          setSelectedCaseId(id);
+          setIsRightInspectorOpen(true);
+        }}
+        onOpenSimulator={() => setIsSimulatorOpen(true)}
+        onOpenAuditLog={() => setIsAuditModalOpen(true)}
+        onOpenSuperAdminModal={userSession?.isSuperAdmin ? () => setIsSuperAdminModalOpen(true) : undefined}
+        onClearAllRecords={handleClearAllRecords}
+        onToggleAudio={handleToggleAudio}
+        isMuted={isAudioMuted}
+      />
+
+      {/* Manual Location Picker Modal (Shown when GPS denied) */}
       {showLocationPicker && (
         <LocationPickerModal
           onConfirm={handleManualLocationPick}
@@ -377,42 +776,7 @@ export function App() {
         />
       )}
 
-      <div className="px-6 pt-2 pb-1">
-        <ConnectedDevicesPanel
-          cases={cases}
-          officers={officers}
-          drones={drones}
-          isConnected={isConnected}
-          onClearAll={handleClearAllRecords}
-          operatorLocation={operatorLocation}
-          gpsStatus={gpsStatus}
-        />
-      </div>
-
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-        <div className="lg:col-span-2 h-full overflow-hidden">
-          <AlertQueue cases={cases} selectedCaseId={selectedCaseId} onSelectCase={(id) => setSelectedCaseId(id)} onVerifyCase={handleVerifyCase} onOpenDispatchModal={(id) => setDispatchModalCaseId(id)} onCancelCase={handleCancelCase} />
-        </div>
-        <div className="lg:col-span-8 flex flex-col h-full overflow-hidden">
-          <div className="flex-1 relative">
-            <LiveMap
-              cases={cases}
-              officers={officers}
-              drones={drones}
-              selectedCaseId={selectedCaseId}
-              onSelectCase={(id) => setSelectedCaseId(id)}
-              operatorLocation={operatorLocation}
-              gpsStatus={gpsStatus}
-              onForceRequestGps={acquireLiveGps}
-            />
-          </div>
-          <DroneControlPanel drones={drones} selectedCase={selectedCase} dispatchModalCaseId={dispatchModalCaseId} onCloseDispatchModal={() => setDispatchModalCaseId(null)} onConfirmDispatch={handleConfirmDispatch} onResolveCase={handleResolveCase} />
-        </div>
-        <div className="lg:col-span-2 h-full overflow-hidden">
-          <PoliceTracker officers={officers} selectedCase={selectedCase} onAssignOfficer={handleAssignOfficer} />
-        </div>
-      </div>
-
+      {/* Tactical Modals */}
       <AuditLogModal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} logs={auditLogs} />
       <SimulatorControls isOpen={isSimulatorOpen} onClose={() => setIsSimulatorOpen(false)} onTriggerSOS={handleTriggerSOS} onSimulateOfficerMove={handleSimulateOfficerMove} />
 
@@ -438,14 +802,13 @@ export function App() {
 }
 
 // ============================================================
-// Manual Location Picker Modal — full-screen map with click-to-pick
-// Shown only when GPS is denied/unavailable and no location is set
+// Manual Location Picker Modal
 // ============================================================
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 const pickerIcon = L.divIcon({
-  html: `<div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#0f172a;border:3px solid #22d3ee;box-shadow:0 0 20px #06b6d4;color:#22d3ee;font-weight:bold;font-size:12px;">📍</div>`,
+  html: `<div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#0f172a;border:3px solid #2997ff;box-shadow:0 0 20px #0071e3;color:#2997ff;font-weight:bold;font-size:12px;">📍</div>`,
   className: 'picker-icon',
   iconSize: [40, 40],
   iconAnchor: [20, 20],

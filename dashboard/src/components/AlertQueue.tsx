@@ -3,6 +3,9 @@ import { AlertCircle, Clock, MapPin, User, Send, PhoneCall, XCircle, Brain, Mic 
 import { Case } from '../types';
 import { checkRedZoneCollision } from './LiveMap';
 
+import { soundFX } from '../utils/audioEffects';
+import { Search, Filter, Layers } from 'lucide-react';
+
 interface AlertQueueProps {
   cases: Case[];
   selectedCaseId: string | null;
@@ -52,7 +55,24 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
   onOpenDispatchModal,
   onCancelCase,
 }) => {
+  const [searchFilter, setSearchFilter] = useState('');
+  const [statusTab, setStatusTab] = useState<'all' | 'critical' | 'verifying' | 'dispatched'>('all');
+
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
+
+  const filteredCases = activeCases.filter(c => {
+    const matchesSearch = searchFilter === '' || 
+      c.id.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      c.reporterName.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      c.address.toLowerCase().includes(searchFilter.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (statusTab === 'critical') return c.severityScore >= 5;
+    if (statusTab === 'verifying') return c.status === 'raised' || c.status === 'verifying';
+    if (statusTab === 'dispatched') return c.status === 'airborne' || c.status === 'unit_assigned' || c.status === 'on_scene';
+    return true;
+  });
 
   const getAiTelemetry = (c: Case) => {
     const numericId = c.id.split('-')[1] || '1';
@@ -80,14 +100,71 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
         </span>
       </div>
 
+      {/* Quick Search & Status Filter Tabs */}
+      <div className="p-3 border-b border-white/[0.06] space-y-2">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-[#86868b] absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Filter incidents or citizen..."
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-[#86868b] focus:outline-none focus:border-[#2997ff]/60 transition-colors"
+          />
+        </div>
+
+        <div className="flex items-center space-x-1 overflow-x-auto pb-0.5 no-scrollbar">
+          <button
+            onClick={() => setStatusTab('all')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+              statusTab === 'all'
+                ? 'bg-white text-black font-semibold shadow-sm'
+                : 'bg-white/[0.05] text-[#86868b] hover:text-white'
+            }`}
+          >
+            All ({activeCases.length})
+          </button>
+          <button
+            onClick={() => setStatusTab('critical')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+              statusTab === 'critical'
+                ? 'bg-[#ff453a] text-white font-semibold shadow-sm'
+                : 'bg-white/[0.05] text-[#86868b] hover:text-white'
+            }`}
+          >
+            Critical ({activeCases.filter(c => c.severityScore >= 5).length})
+          </button>
+          <button
+            onClick={() => setStatusTab('verifying')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+              statusTab === 'verifying'
+                ? 'bg-[#ff9f0a] text-black font-semibold shadow-sm'
+                : 'bg-white/[0.05] text-[#86868b] hover:text-white'
+            }`}
+          >
+            Verify
+          </button>
+          <button
+            onClick={() => setStatusTab('dispatched')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+              statusTab === 'dispatched'
+                ? 'bg-[#2997ff] text-white font-semibold shadow-sm'
+                : 'bg-white/[0.05] text-[#86868b] hover:text-white'
+            }`}
+          >
+            Dispatched
+          </button>
+        </div>
+      </div>
+
       {/* Case List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-        {activeCases.length === 0 ? (
+        {filteredCases.length === 0 ? (
           <div className="text-center py-16 text-[#86868b] text-xs">
-            No Active Incident Alerts
+            {searchFilter ? 'No matching incidents found' : 'No Active Incident Alerts'}
           </div>
         ) : (
-          activeCases.map((c) => {
+          filteredCases.map((c) => {
             const isSelected = c.id === selectedCaseId;
             const timeAgo = Math.max(1, Math.round((Date.now() - new Date(c.createdAt).getTime()) / 60000));
             const { stressScore, screamDetected, faceLock } = getAiTelemetry(c);
@@ -96,7 +173,10 @@ export const AlertQueue: React.FC<AlertQueueProps> = ({
             return (
               <div
                 key={c.id}
-                onClick={() => onSelectCase(c.id)}
+                onClick={() => {
+                  soundFX.playClickTick();
+                  onSelectCase(c.id);
+                }}
                 className={`p-3.5 rounded-[16px] border transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-[#232326] border-[#2997ff]/60 shadow-apple-card ring-1 ring-[#2997ff]/40'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, Terminal, Trash2, LogOut, UserCheck, Sliders, Navigation, Clock, Cpu } from 'lucide-react';
+import { Shield, Activity, Terminal, Trash2, LogOut, UserCheck, Sliders, Navigation, Clock, Cpu, Search, Volume2, VolumeX, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Case } from '../types';
 import { UserSession } from './DashboardAuthScreen';
 
@@ -10,6 +10,11 @@ interface HeaderProps {
   onOpenSimulator: () => void;
   onClearAllRecords: () => void;
   onOpenSuperAdminModal?: () => void;
+  onOpenCommandPalette?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+  isAudioMuted?: boolean;
+  onToggleAudio?: () => void;
   session?: UserSession | null;
   onLogout?: () => void;
   operatorLocation?: { lat: number; lng: number; accuracy?: number; timestamp?: number } | null;
@@ -24,6 +29,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSimulator,
   onClearAllRecords,
   onOpenSuperAdminModal,
+  onOpenCommandPalette,
+  sidebarCollapsed = false,
+  onToggleSidebar,
+  isAudioMuted = false,
+  onToggleAudio,
   session,
   onLogout,
   operatorLocation,
@@ -57,9 +67,18 @@ export const Header: React.FC<HeaderProps> = ({
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
 
   return (
-    <header className="apple-glass-nav h-14 px-5 flex items-center justify-between z-30 relative select-none">
-      {/* Brand & System Title */}
+    <header className="apple-glass-nav h-14 px-4 flex items-center justify-between z-30 relative select-none">
+      {/* Brand & System Title + Sidebar Toggle */}
       <div className="flex items-center space-x-3">
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            title={sidebarCollapsed ? "Expand sidebar ([)" : "Collapse sidebar ([)"}
+            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center text-[#86868b] hover:text-white transition-all"
+          >
+            {sidebarCollapsed ? <PanelLeft className="w-4 h-4 text-[#2997ff]" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
+        )}
         <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-[#2997ff]/20 to-[#0071e3]/30 border border-[#2997ff]/30 flex items-center justify-center shadow-[0_2px_10px_rgba(0,113,227,0.25)]">
           <Shield className="w-4 h-4 text-[#2997ff]" />
         </div>
@@ -132,6 +151,30 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Toolbar Controls */}
       <div className="flex items-center space-x-2">
+        {/* Spotlight Command Palette Trigger */}
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            className="apple-pill-btn h-8 bg-white/[0.04] hover:bg-white/[0.08] text-[#86868b] hover:text-white border border-white/[0.08] text-[11px] px-3 inline-flex items-center space-x-2 transition-all font-medium"
+            title="Open Command Palette (⌘K / Ctrl+K)"
+          >
+            <Search className="w-3 h-3 text-[#2997ff]" />
+            <span className="hidden sm:inline">Command...</span>
+            <kbd className="text-[9px] bg-black/40 px-1.5 py-0.5 rounded border border-white/10 font-mono text-white/60">⌘K</kbd>
+          </button>
+        )}
+
+        {/* Audio Mute/Unmute Toggle */}
+        {onToggleAudio && (
+          <button
+            onClick={onToggleAudio}
+            className="apple-btn-secondary h-8 w-8 inline-flex items-center justify-center text-[#86868b] hover:text-white"
+            title={isAudioMuted ? "Unmute Audio Cues" : "Mute Audio Cues"}
+          >
+            {isAudioMuted ? <VolumeX className="w-3.5 h-3.5 text-[#ff453a]" /> : <Volume2 className="w-3.5 h-3.5 text-[#30d158]" />}
+          </button>
+        )}
+
         {/* User Session Badge */}
         {session && (
           <div className="h-8 bg-white/[0.04] border border-white/[0.08] px-3 rounded-full flex items-center space-x-2">

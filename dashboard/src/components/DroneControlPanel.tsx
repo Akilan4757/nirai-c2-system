@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Cpu, BatteryCharging, Radio, CheckSquare, AlertOctagon, Video, ShieldAlert, Play, Battery, Orbit, HardDrive } from 'lucide-react';
+import { Cpu, BatteryCharging, Radio, CheckSquare, AlertOctagon, Video, ShieldAlert, Play, Battery, Orbit, HardDrive, ChevronUp, ChevronDown } from 'lucide-react';
 import { Drone, Case } from '../types';
 import { checkRedZoneCollision } from './LiveMap';
+import { soundFX } from '../utils/audioEffects';
 
 interface DroneControlPanelProps {
   drones: Drone[];
@@ -10,6 +11,7 @@ interface DroneControlPanelProps {
   onCloseDispatchModal: () => void;
   onConfirmDispatch: (caseId: string, motherDroneId: string, airspaceConfirmed: boolean) => void;
   onResolveCase: (caseId: string) => void;
+  defaultExpanded?: boolean;
 }
 
 export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
@@ -19,38 +21,112 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
   onCloseDispatchModal,
   onConfirmDispatch,
   onResolveCase,
+  defaultExpanded = false,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [airspaceChecked, setAirspaceChecked] = useState(false);
   const [selectedMotherId] = useState('drone-m1');
 
   const motherDrones = drones.filter(d => d.type === 'mother');
   const childDrones = drones.filter(d => d.type === 'child');
   const activeChild = childDrones.find(d => d.status === 'airborne' || d.streamUrl);
+  const motherAlpha = motherDrones[0];
 
   const isBlockedByGeofence = selectedCase 
     ? checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng) 
     : false;
 
   return (
-    <div className="apple-glass border-t border-white/[0.08] p-4 h-72 flex flex-col justify-between">
-      {/* Panel Header */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
-        <div className="flex items-center space-x-2">
-          <Cpu className="w-4 h-4 text-[#bf5af2]" />
-          <h2 className="apple-headline text-xs font-semibold text-white">
-            Drone Fleet & Telemetry
-          </h2>
+    <div className="w-full max-w-4xl mx-auto transition-all duration-300 select-none">
+      {/* Collapsed Minimalist Dock Pill */}
+      {!isExpanded ? (
+        <div className="apple-glass rounded-full px-5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center justify-between space-x-4 cursor-pointer hover:border-[#bf5af2]/40 transition-all"
+             onClick={() => {
+               soundFX.playClickTick();
+               setIsExpanded(true);
+             }}>
+          <div className="flex items-center space-x-3">
+            <div className="w-7 h-7 rounded-full bg-[#bf5af2]/20 border border-[#bf5af2]/40 flex items-center justify-center">
+              <Cpu className="w-3.5 h-3.5 text-[#bf5af2]" />
+            </div>
+            <div className="flex items-center space-x-2 text-xs">
+              <span className="font-semibold text-white">{motherAlpha ? motherAlpha.name : 'Mother Alpha'}</span>
+              <span className="text-[11px] bg-white/[0.08] text-[#30d158] border border-white/[0.08] px-2 py-0.5 rounded-full font-medium apple-tabular">
+                {motherAlpha ? `${motherAlpha.batteryPct}% BAT` : '100%'}
+              </span>
+              <span className="text-[#86868b]">•</span>
+              <span className="text-[11px] text-[#f5f5f7]">
+                {childDrones.filter(c => c.status === 'airborne').length > 0 ? (
+                  <span className="text-[#bf5af2] font-semibold">1 Recon In Flight</span>
+                ) : (
+                  <span>{childDrones.filter(c => c.status === 'docked' || c.status === 'charging').length} Bays Docked</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {selectedCase && (selectedCase.status === 'airborne' || selectedCase.status === 'on_scene') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  soundFX.playResolveChime();
+                  onResolveCase(selectedCase.id);
+                }}
+                className="apple-pill-btn bg-[#30d158]/15 hover:bg-[#30d158]/25 text-[#30d158] border border-[#30d158]/30 text-[11px] px-3 py-1 font-medium transition-all flex items-center space-x-1"
+              >
+                <CheckSquare className="w-3 h-3" />
+                <span>Recall Fleet</span>
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                soundFX.playClickTick();
+                setIsExpanded(true);
+              }}
+              className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-[#86868b] hover:text-white"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        {selectedCase && (selectedCase.status === 'airborne' || selectedCase.status === 'on_scene') && (
-          <button
-            onClick={() => onResolveCase(selectedCase.id)}
-            className="apple-pill-btn bg-[#30d158]/15 hover:bg-[#30d158]/25 text-[#30d158] border border-[#30d158]/30 text-xs px-3.5 py-1.5 font-medium transition-all flex items-center space-x-1.5"
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            <span>Mark Resolved & Recall Fleet</span>
-          </button>
-        )}
-      </div>
+      ) : (
+        /* Expanded Floating Card */
+        <div className="apple-glass rounded-3xl p-4 shadow-2xl border border-white/[0.12] flex flex-col justify-between">
+          {/* Panel Header */}
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+            <div className="flex items-center space-x-2">
+              <Cpu className="w-4 h-4 text-[#bf5af2]" />
+              <h2 className="apple-headline text-xs font-semibold text-white">
+                Drone Fleet & Telemetry
+              </h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              {selectedCase && (selectedCase.status === 'airborne' || selectedCase.status === 'on_scene') && (
+                <button
+                  onClick={() => {
+                    soundFX.playResolveChime();
+                    onResolveCase(selectedCase.id);
+                  }}
+                  className="apple-pill-btn bg-[#30d158]/15 hover:bg-[#30d158]/25 text-[#30d158] border border-[#30d158]/30 text-xs px-3.5 py-1.5 font-medium transition-all flex items-center space-x-1.5"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  <span>Recall Fleet</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  soundFX.playClickTick();
+                  setIsExpanded(false);
+                }}
+                className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-[#86868b] hover:text-white"
+                title="Collapse dock"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
       {/* Fleet Cards + Live Stream Container */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 my-2 flex-1 overflow-hidden">
@@ -173,6 +249,8 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
           )}
         </div>
       </div>
+    </div>
+  )}
 
       {/* Human-in-the-Loop "Confirm Dispatch" Modal */}
       {dispatchModalCaseId && (
