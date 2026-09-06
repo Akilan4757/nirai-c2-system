@@ -84,6 +84,105 @@ const FloatingDronePiP: React.FC<{
   );
 };
 
+const DEFAULT_CASES: Case[] = [
+  {
+    id: 'case-101',
+    reporterUserId: 'usr-c1',
+    reporterName: 'Priya Sharma',
+    reporterPhone: '+919876543210',
+    status: 'raised',
+    location: { lat: 13.0875, lng: 80.2790 },
+    address: 'Near Central Railway Station, Gate 3, Chennai',
+    severityScore: 7,
+    createdAt: new Date(Date.now() - 180000).toISOString(),
+    assignedOfficerUserId: 'usr-p1',
+    assignedOfficerName: 'Insp. R. Arumugam',
+    etaSeconds: 180,
+    droneId: null,
+    verificationNotes: 'Distress call initiated. Live optical uplink available.',
+    mediaUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
+    decibelLevel: 68
+  }
+];
+
+const DEFAULT_OFFICERS: Officer[] = [
+  {
+    userId: 'usr-p1',
+    name: 'Insp. R. Arumugam',
+    badgeId: 'TNP-4091',
+    onDuty: true,
+    vehicle: 'Interceptor PCR-04',
+    location: { lat: 13.0845, lng: 80.2740 },
+    lastHeartbeat: new Date().toISOString()
+  },
+  {
+    userId: 'usr-p2',
+    name: 'Sub-Insp. S. Muthu',
+    badgeId: 'TNP-5820',
+    onDuty: true,
+    vehicle: 'Swift Patrol Bike #12',
+    location: { lat: 13.0780, lng: 80.2850 },
+    lastHeartbeat: new Date().toISOString()
+  }
+];
+
+const DEFAULT_DRONES: Drone[] = [
+  {
+    id: 'drone-m1',
+    name: 'Mother Alpha (Airborne Command)',
+    type: 'mother',
+    status: 'airborne',
+    batteryPct: 98,
+    altitudeMeters: 65,
+    speedKmh: 48,
+    location: { lat: 13.0850, lng: 80.2760 },
+    homeLocation: { lat: 13.0827, lng: 80.2707 }
+  },
+  {
+    id: 'drone-c1',
+    name: 'Recon Scout 01',
+    type: 'child',
+    status: 'docked',
+    batteryPct: 95,
+    altitudeMeters: 0,
+    speedKmh: 0,
+    location: { lat: 13.0850, lng: 80.2760 },
+    parentMotherId: 'drone-m1',
+    streamUrl: null
+  },
+  {
+    id: 'drone-c2',
+    name: 'Recon Scout 02',
+    type: 'child',
+    status: 'charging',
+    batteryPct: 82,
+    altitudeMeters: 0,
+    speedKmh: 0,
+    location: { lat: 13.0850, lng: 80.2760 },
+    parentMotherId: 'drone-m1',
+    streamUrl: null
+  }
+];
+
+const DEFAULT_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'aud-1',
+    timestamp: new Date(Date.now() - 180000).toISOString(),
+    action: 'SOS_TRIGGERED',
+    actor: 'Priya Sharma (+919876543210)',
+    target: 'case-101',
+    hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+  },
+  {
+    id: 'aud-2',
+    timestamp: new Date(Date.now() - 120000).toISOString(),
+    action: 'OFFICER_ASSIGNED',
+    actor: 'Operator #4 (SPMCR)',
+    target: 'case-101 (Assigned: Insp. R. Arumugam)',
+    hash: 'ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'
+  }
+];
+
 export function App() {
   const [userSession, setUserSession] = useState<UserSession | null>(() => {
     try {
@@ -107,12 +206,12 @@ export function App() {
   const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'locked' | 'denied' | 'unsupported' | 'manual_pick'>('acquiring');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  // Core Data States
-  const [cases, setCases] = useState<Case[]>([]);
-  const [officers, setOfficers] = useState<Officer[]>([]);
-  const [drones, setDrones] = useState<Drone[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  // Core Data States (Initialized with rich situational baselines)
+  const [cases, setCases] = useState<Case[]>(DEFAULT_CASES);
+  const [officers, setOfficers] = useState<Officer[]>(DEFAULT_OFFICERS);
+  const [drones, setDrones] = useState<Drone[]>(DEFAULT_DRONES);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(DEFAULT_AUDIT_LOGS);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>('case-101');
   const [isConnected, setIsConnected] = useState(false);
 
   // Spatial Dashboard Controls
@@ -449,42 +548,90 @@ export function App() {
 
   const handleVerifyCase = (caseId: string, isFalseAlarm: boolean) => {
     soundFX.playClickTick();
-    fetch(`${API_BASE}/v1/cases/${caseId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFalseAlarm, notes: 'Verified by operator call.' }) });
+    setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: isFalseAlarm ? 'false_alarm' : 'verifying', verificationNotes: 'Verified by operator call.' } : c));
+    try { updateDoc(doc(db, 'cases', caseId), { status: isFalseAlarm ? 'false_alarm' : 'verifying', verificationNotes: 'Verified by operator call.' }); } catch (e) {}
+    fetch(`${API_BASE}/v1/cases/${caseId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFalseAlarm, notes: 'Verified by operator call.' }) }).catch(() => {});
   };
+
   const handleAssignOfficer = (caseId: string, officerUserId: string) => {
     soundFX.playDispatchConfirm();
-    fetch(`${API_BASE}/v1/cases/${caseId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ officerUserId }) });
+    const officer = officers.find(o => o.userId === officerUserId);
+    setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: 'unit_assigned', assignedOfficerUserId: officerUserId, assignedOfficerName: officer?.name || 'Officer', etaSeconds: 180 } : c));
+    try { updateDoc(doc(db, 'cases', caseId), { status: 'unit_assigned', assignedOfficerUserId: officerUserId, assignedOfficerName: officer?.name || 'Officer', etaSeconds: 180 }); } catch (e) {}
+    fetch(`${API_BASE}/v1/cases/${caseId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ officerUserId }) }).catch(() => {});
   };
+
   const handleConfirmDispatch = (caseId: string, motherDroneId: string, airspaceConfirmed: boolean) => {
     soundFX.playDispatchConfirm();
-    fetch(`${API_BASE}/v1/cases/${caseId}/dispatch-drone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motherDroneId, operatorId: 'Op-#4', airspaceConfirmed }) });
+    setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: 'airborne', droneId: 'drone-c1' } : c));
+    setDrones(prev => prev.map(d => d.id === 'drone-c1' ? { ...d, status: 'airborne', streamUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60' } : d));
+    try { updateDoc(doc(db, 'cases', caseId), { status: 'airborne', droneId: 'drone-c1' }); } catch (e) {}
+    fetch(`${API_BASE}/v1/cases/${caseId}/dispatch-drone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motherDroneId, operatorId: 'Op-#4', airspaceConfirmed }) }).catch(() => {});
     setDispatchModalCaseId(null);
   };
+
   const handleResolveCase = async (caseId: string) => {
     soundFX.playResolveChime();
     setCases(prev => prev.filter(c => c.id !== caseId));
     try { await updateDoc(doc(db, 'cases', caseId), { status: 'resolved' }); } catch (err) { try { await deleteDoc(doc(db, 'cases', caseId)); } catch (e) {} }
     fetch(`${API_BASE}/v1/cases/${caseId}/resolve`, { method: 'POST' }).catch(() => {});
   };
-  const handleTriggerSOS = (reporterName: string, address: string, lat: number, lng: number) => {
+
+  const handleTriggerSOS = async (reporterName: string, address: string, lat: number, lng: number) => {
     soundFX.playSosChime();
-    fetch(`${API_BASE}/v1/sos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reporterName, address, lat, lng }) }).catch(() => {});
+    const caseId = `case-${Date.now().toString().slice(-4)}`;
+    const newCase: Case = {
+      id: caseId,
+      reporterUserId: 'usr-mobile',
+      reporterName,
+      reporterPhone: '+919876543210',
+      status: 'raised',
+      location: { lat, lng },
+      address,
+      severityScore: 7,
+      createdAt: new Date().toISOString(),
+      assignedOfficerUserId: null,
+      assignedOfficerName: null,
+      etaSeconds: null,
+      droneId: null,
+      verificationNotes: 'Triggered via C2 Simulator.',
+      mediaUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=60',
+      decibelLevel: 68
+    };
+
+    setCases(prev => [newCase, ...prev.filter(c => c.id !== caseId)]);
+    setSelectedCaseId(caseId);
+
+    try {
+      await setDoc(doc(db, 'cases', caseId), newCase);
+    } catch (e) {}
+
+    fetch(`${API_BASE}/v1/sos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caseId, reporterName, address, lat, lng })
+    }).catch(() => {});
   };
+
   const handleSimulateOfficerMove = () => {
     if (!operatorLocation) return;
     const lat = operatorLocation.lat + (Math.random() - 0.5) * 0.01;
     const lng = operatorLocation.lng + (Math.random() - 0.5) * 0.01;
+    setOfficers(prev => prev.map(o => o.userId === 'usr-p1' ? { ...o, location: { lat, lng }, lastHeartbeat: new Date().toISOString() } : o));
     fetch(`${API_BASE}/v1/officers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'usr-p1', lat, lng, onDuty: true }) }).catch(() => {});
   };
 
-  const handleSimulateMediaStream = (targetCaseId?: string) => {
-    const targetId = targetCaseId || selectedCaseId || cases[0]?.id;
-    if (!targetId) return;
+  const handleSimulateMediaStream = async (targetCaseId?: string) => {
+    let targetId = targetCaseId || selectedCaseId || cases[0]?.id;
+    if (!targetId) {
+      targetId = 'case-101';
+      setSelectedCaseId(targetId);
+    }
 
     soundFX.playClickTick();
 
     let frameCount = 0;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       frameCount++;
       const timeStr = new Date().toLocaleTimeString();
       const decibel = Math.floor(Math.random() * 28) + 55;
@@ -498,23 +645,41 @@ export function App() {
           </linearGradient>
         </defs>
         <rect width="640" height="360" fill="url(#g)"/>
-        <line x1="0" y1="${(frameCount * 25) % 360}" x2="640" y2="${(frameCount * 25) % 360}" stroke="#00f2ff" stroke-width="1.5" opacity="0.35"/>
+        <line x1="0" y1="${(frameCount * 25) % 360}" x2="640" y2="${(frameCount * 25) % 360}" stroke="#00f2ff" stroke-width="1.5" opacity="0.45"/>
         <circle cx="320" cy="180" r="100" stroke="#38bdf8" stroke-width="1" fill="none" opacity="0.4"/>
         <circle cx="320" cy="180" r="40" stroke="#ff453a" stroke-width="1" fill="none" opacity="0.6"/>
         <line x1="320" y1="60" x2="320" y2="300" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
         <line x1="200" y1="180" x2="440" y2="180" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
         <circle cx="320" cy="180" r="4" fill="#ff453a"/>
-        <rect x="20" y="20" width="220" height="36" rx="6" fill="#000000" opacity="0.7"/>
+        <rect x="20" y="20" width="230" height="36" rx="6" fill="#000000" opacity="0.75"/>
         <circle cx="35" cy="38" r="5" fill="#ff453a"/>
         <text x="48" y="42" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff">LIVE FEED • ${targetId.toUpperCase()}</text>
-        <rect x="20" y="305" width="260" height="35" rx="6" fill="#000000" opacity="0.7"/>
-        <text x="32" y="327" font-family="monospace" font-size="11" fill="#30d158">REC ${timeStr} • ${decibel} dB</text>
-        <rect x="460" y="20" width="160" height="36" rx="6" fill="#000000" opacity="0.7"/>
+        <rect x="20" y="305" width="280" height="35" rx="6" fill="#000000" opacity="0.75"/>
+        <text x="32" y="327" font-family="monospace" font-size="11" fill="#30d158">LIVE REC ${timeStr} • ${decibel} dB</text>
+        <rect x="460" y="20" width="160" height="36" rx="6" fill="#000000" opacity="0.75"/>
         <text x="475" y="42" font-family="monospace" font-size="12" fill="#38bdf8">1080P • 30 FPS</text>
       </svg>`;
 
       const base64Frame = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 
+      // Instant local state update
+      setCases(prev => prev.map(c => c.id === targetId ? {
+        ...c,
+        mediaUrl: base64Frame,
+        decibelLevel: decibel
+      } : c));
+
+      // Direct Firestore update (every ~1s)
+      if (frameCount % 4 === 1) {
+        try {
+          await updateDoc(doc(db, 'cases', targetId), {
+            mediaUrl: base64Frame,
+            decibelLevel: decibel
+          });
+        } catch (e) {}
+      }
+
+      // Backend call if reachable
       fetch(`${API_BASE}/v1/cases/${targetId}/stream-frame`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
