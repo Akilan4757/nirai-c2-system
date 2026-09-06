@@ -6,23 +6,23 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Standard Tactical Dark Color Scheme (Default)
+// Apple Pro Dark Color Scheme (iOS 18 HIG)
 private val StandardDarkColorScheme = darkColorScheme(
-    primary = PrimaryCyan,
-    secondary = PrimaryBlue,
-    tertiary = AiTelemetryAccent,
-    background = BgDark950,
-    surface = BgDark900,
-    onPrimary = Color.Black,
+    primary = PrimaryBlue,          // Signature Apple Action Blue (#0071E3)
+    secondary = PrimaryCyan,        // Apple Sky Blue (#2997FF)
+    tertiary = AiTelemetryAccent,   // Apple Intelligence Purple (#BF5AF2)
+    background = BgDark950,         // Pure Black (#000000)
+    surface = BgDark900,            // System Gray 6 (#1C1C1E)
+    onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = TextPrimary,
+    onBackground = TextPrimary,     // Parchment White (#F5F5F7)
     onSurface = TextPrimary,
-    outline = BorderDark
+    outline = BorderDark            // 1px Translucent Hairline
 )
 
-// High-Contrast Offline Fallback Amber Color Scheme
+// Apple Warm Amber Offline Fallback Color Scheme
 private val OfflineAmberColorScheme = darkColorScheme(
-    primary = OfflineAmberPrimary,
+    primary = OfflineAmberPrimary,  // Apple System Orange (#FF9F0A)
     secondary = OfflineAmberSecondary,
     tertiary = AiTelemetryAccent,
     background = OfflineAmberBg,

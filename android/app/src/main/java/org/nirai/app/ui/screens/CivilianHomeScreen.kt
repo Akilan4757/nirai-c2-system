@@ -378,64 +378,66 @@ fun CivilianHomeScreen() {
                 }
             }
 
-            // GPS Location Card
+            // Apple-style GPS Location Card
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = if (hasGpsFix) Icons.Default.MyLocation else Icons.Default.LocationSearching,
                             contentDescription = null,
-                            tint = if (hasGpsFix) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                            tint = if (hasGpsFix) Color(0xFF30D158) else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (hasGpsFix) "GPS LOCK ACQUIRED" else "SEARCHING FOR SATELLITES...",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (hasGpsFix) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
-                            letterSpacing = 0.5.sp
+                            text = if (hasGpsFix) "GPS Position Locked" else "Locating Satellites...",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (hasGpsFix) Color(0xFF30D158) else MaterialTheme.colorScheme.primary,
+                            letterSpacing = (-0.2).sp
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = currentAddress,
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White,
                         maxLines = 2
                     )
                     if (hasGpsFix) {
                         Text(
-                            text = "LAT: ${String.format("%.4f", currentLat)} | LNG: ${String.format("%.4f", currentLng)}",
+                            text = "Lat: ${String.format("%.4f", currentLat)}° • Lng: ${String.format("%.4f", currentLng)}°",
                             style = TabularTypography.telemetrySmall,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
             }
 
-            // Active Case ID Banner
+            // iOS Live Activity / Dynamic Island Active Case Banner
             AnimatedVisibility(visible = activeCaseId != null && isSosTriggered) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF7C2D12)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0x33FF453A), RoundedCornerShape(24.dp))
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("ACTIVE OPERATION ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                            Text("Active Emergency Operation", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFF9F0A))
                             Text(
                                 text = activeCaseId ?: "",
                                 style = TabularTypography.telemetryMedium,
@@ -459,15 +461,14 @@ fun CivilianHomeScreen() {
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FF453A), contentColor = Color(0xFFFF453A)),
+                            shape = RoundedCornerShape(percent = 50),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                text = if (isCancelling) "..." else "CANCEL",
+                                text = if (isCancelling) "..." else "Cancel",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -476,15 +477,15 @@ fun CivilianHomeScreen() {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Central Hold-to-Trigger Area
+            // Central Hold-to-Trigger Area (Apple Tactile Hold)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(240.dp)
             ) {
-                // Pulsing rings when idle
+                // Ambient Breathing Aura
                 if (!isSosTriggered && !isPressing) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        color = Color(0xFFFF453A).copy(alpha = 0.08f),
                         shape = CircleShape,
                         modifier = Modifier
                             .size(230.dp)
@@ -494,7 +495,7 @@ fun CivilianHomeScreen() {
 
                 if (isSosTriggered) {
                     Surface(
-                        color = Color(0xFF06B6D4).copy(alpha = 0.12f),
+                        color = Color(0xFF0071E3).copy(alpha = 0.12f),
                         shape = CircleShape,
                         modifier = Modifier
                             .fillMaxSize()
@@ -502,34 +503,34 @@ fun CivilianHomeScreen() {
                     ) {}
                 }
 
-                // Custom radial progress indicator ring during held press
+                // Apple radial progress ring during held press
                 if (isPressing && gestureProgress > 0f) {
-                    val radialColor = MaterialTheme.colorScheme.primary
+                    val radialColor = Color(0xFFFF453A)
                     Canvas(modifier = Modifier.size(210.dp)) {
                         drawCircle(
-                            color = Color(0xFF1E293B),
+                            color = Color(0xFF2C2C2E),
                             radius = size.width / 2f,
-                            style = Stroke(width = 6.dp.toPx())
+                            style = Stroke(width = 5.dp.toPx())
                         )
                         drawArc(
                             color = radialColor,
                             startAngle = -90f,
                             sweepAngle = 360f * gestureProgress,
                             useCenter = false,
-                            style = Stroke(width = 8.dp.toPx())
+                            style = Stroke(width = 7.dp.toPx())
                         )
                     }
                 }
 
-                // Core SOS button with pointer input holder modifier
+                // Core Apple SOS Button
                 Surface(
                     color = when {
-                        isSosTriggered -> Color(0xFF06B6D4)
-                        isPressing -> MaterialTheme.colorScheme.primary
-                        else -> Color(0xFFEF4444)
+                        isSosTriggered -> Color(0xFF0071E3)
+                        isPressing -> Color(0xFFFF3B30)
+                        else -> Color(0xFFFF453A)
                     },
                     shape = CircleShape,
-                    shadowElevation = 18.dp,
+                    shadowElevation = 14.dp,
                     modifier = Modifier
                         .size(185.dp)
                         .pointerInput(isSosTriggered) {
@@ -560,11 +561,11 @@ fun CivilianHomeScreen() {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "HOLD TO BROADCAST",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "Hold to Broadcast",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = Color.White.copy(alpha = 0.9f),
-                                letterSpacing = 0.5.sp
+                                letterSpacing = (-0.2).sp
                             )
                         } else if (isSosTriggered) {
                             Icon(
@@ -575,9 +576,9 @@ fun CivilianHomeScreen() {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "HELP DISPATCHED",
+                                text = "Help Dispatched",
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = Color.White
                             )
                             Text(

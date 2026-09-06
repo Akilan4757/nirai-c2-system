@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Cpu, Users, MapPin, AlertOctagon, Radio, Lock, RefreshCw, X, Check, Slash } from 'lucide-react';
+import { Shield, Cpu, Users, MapPin, AlertOctagon, Radio, X, Check } from 'lucide-react';
 import { Drone, Officer, Case } from '../types';
 import { UserSession } from './DashboardAuthScreen';
 
@@ -21,7 +21,6 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
   session,
   drones,
   officers,
-  cases,
   selectedZone,
   onSelectZone,
   onRecallAllDrones
@@ -29,7 +28,6 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
   const [activeTab, setActiveTab] = useState<'devices' | 'users' | 'zones' | 'overrides'>('devices');
   const [revokedNodeIds, setRevokedNodeIds] = useState<Set<string>>(new Set());
 
-  // Mock list of dashboard users
   const [dashboardUsers, setDashboardUsers] = useState([
     { id: 'usr-admin', name: 'Senthil Akilan', email: 'senthilakilan47@gmail.com', role: 'SUPER ADMIN', zone: 'ALL SECTORS', status: 'ACTIVE' },
     { id: 'usr-op1', name: 'Insp. R. Arumugam', email: 'arumugam@police.tn.gov.in', role: 'OPERATOR', zone: 'Zone 1 — Central', status: 'ACTIVE' },
@@ -59,92 +57,94 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[9999] p-4 font-sans">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xl flex items-center justify-center z-[9999] p-4 select-none">
+      <div className="apple-glass rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-amber-500/10 border border-amber-500/40 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 bg-amber-500/15 border border-amber-500/30 rounded-2xl flex items-center justify-center shadow-[0_2px_12px_rgba(245,158,11,0.25)]">
+              <Shield className="w-5 h-5 text-[#ff9f0a]" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold font-display tracking-wider text-slate-100">SUPER ADMIN GOVERNANCE CONSOLE</h2>
-                <span className="bg-amber-500/20 text-amber-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold border border-amber-500/40 uppercase">
-                  ROOT PRIVILEGES
+                <h2 className="apple-headline text-base font-semibold text-white">Administration Console</h2>
+                <span className="bg-[#ff9f0a]/20 text-[#ff9f0a] text-[10px] px-2 py-0.5 rounded-full font-medium border border-[#ff9f0a]/30">
+                  Root
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-mono">Principal: {session.name} ({session.email})</p>
+              <p className="text-xs text-[#86868b] mt-0.5">{session.name} ({session.email})</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all"
+            className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/70 hover:text-white transition-all"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Console Navigation Tabs */}
-        <div className="flex border-b border-slate-800 bg-slate-950 px-6 space-x-4">
-          <button
-            onClick={() => setActiveTab('devices')}
-            className={`py-3 text-xs font-mono font-bold border-b-2 flex items-center space-x-2 transition-all ${
-              activeTab === 'devices'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Cpu className="w-4 h-4" />
-            <span>CONNECTED HARDWARE NODES ({drones.length + officers.length})</span>
-          </button>
+        {/* Console Navigation Tabs (Apple Segmented Bar) */}
+        <div className="p-3 bg-black/30 border-b border-white/[0.06] flex justify-center">
+          <div className="flex bg-black/50 p-1 rounded-full border border-white/[0.08] space-x-1">
+            <button
+              onClick={() => setActiveTab('devices')}
+              className={`px-4 py-1.5 text-xs font-medium rounded-full flex items-center space-x-1.5 transition-all ${
+                activeTab === 'devices'
+                  ? 'bg-white/[0.16] text-white shadow-sm'
+                  : 'text-[#86868b] hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5 text-[#2997ff]" />
+              <span>Hardware Nodes</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`py-3 text-xs font-mono font-bold border-b-2 flex items-center space-x-2 transition-all ${
-              activeTab === 'users'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>OPERATOR PERMISSIONS ({dashboardUsers.length})</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-1.5 text-xs font-medium rounded-full flex items-center space-x-1.5 transition-all ${
+                activeTab === 'users'
+                  ? 'bg-white/[0.16] text-white shadow-sm'
+                  : 'text-[#86868b] hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-[#30d158]" />
+              <span>Operators</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('zones')}
-            className={`py-3 text-xs font-mono font-bold border-b-2 flex items-center space-x-2 transition-all ${
-              activeTab === 'zones'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MapPin className="w-4 h-4" />
-            <span>CITY SECTOR & ZONING</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('zones')}
+              className={`px-4 py-1.5 text-xs font-medium rounded-full flex items-center space-x-1.5 transition-all ${
+                activeTab === 'zones'
+                  ? 'bg-white/[0.16] text-white shadow-sm'
+                  : 'text-[#86868b] hover:text-white'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-[#ff9f0a]" />
+              <span>City Sectors</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('overrides')}
-            className={`py-3 text-xs font-mono font-bold border-b-2 flex items-center space-x-2 transition-all ${
-              activeTab === 'overrides'
-                ? 'border-amber-400 text-amber-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <AlertOctagon className="w-4 h-4" />
-            <span>MASTER OVERRIDES</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('overrides')}
+              className={`px-4 py-1.5 text-xs font-medium rounded-full flex items-center space-x-1.5 transition-all ${
+                activeTab === 'overrides'
+                  ? 'bg-white/[0.16] text-white shadow-sm'
+                  : 'text-[#86868b] hover:text-white'
+              }`}
+            >
+              <AlertOctagon className="w-3.5 h-3.5 text-[#ff453a]" />
+              <span>Overrides</span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Contents */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
           {/* TAB 1: Connected Devices & Access Revocation */}
           {activeTab === 'devices' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-slate-400 uppercase font-bold">ACTIVE HARDWARE & MOBILE NODE REGISTRY</span>
-                <span className="text-xs font-mono text-emerald-400">{drones.length + officers.length} REGISTERED NODES</span>
+                <span className="text-xs font-medium text-[#86868b]">Active Hardware & Mobile Registry</span>
+                <span className="text-xs text-[#30d158] apple-tabular">{drones.length + officers.length} Registered</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -152,25 +152,25 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
                 {drones.map(d => {
                   const isRevoked = revokedNodeIds.has(d.id);
                   return (
-                    <div key={d.id} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div key={d.id} className="apple-card p-3.5 rounded-2xl flex items-center justify-between">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <Radio className={`w-3.5 h-3.5 ${isRevoked ? 'text-rose-500' : 'text-purple-400'}`} />
-                          <span className="text-xs font-bold text-slate-200">{d.name}</span>
+                          <Radio className={`w-3.5 h-3.5 ${isRevoked ? 'text-[#ff453a]' : 'text-[#bf5af2]'}`} />
+                          <span className="text-xs font-semibold text-white/90">{d.name}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                          ID: {d.id} | TYPE: {d.type.toUpperCase()} | BATT: {d.batteryPct}%
+                        <span className="text-[10px] text-[#86868b] block mt-0.5 apple-tabular">
+                          ID: {d.id} • Type: {d.type} • Battery: {d.batteryPct}%
                         </span>
                       </div>
                       <button
                         onClick={() => toggleNodeRevocation(d.id)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-all ${
+                        className={`text-[11px] py-1 px-3 apple-pill-btn font-medium ${
                           isRevoked
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                            ? 'bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 hover:bg-[#30d158]/25'
+                            : 'apple-btn-destructive'
                         }`}
                       >
-                        {isRevoked ? 'RESTORE ACCESS' : 'REVOKE NODE'}
+                        {isRevoked ? 'Restore Access' : 'Revoke Node'}
                       </button>
                     </div>
                   );
@@ -180,25 +180,25 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
                 {officers.map(o => {
                   const isRevoked = revokedNodeIds.has(o.userId);
                   return (
-                    <div key={o.userId} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div key={o.userId} className="apple-card p-3.5 rounded-2xl flex items-center justify-between">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <Shield className={`w-3.5 h-3.5 ${isRevoked ? 'text-rose-500' : 'text-blue-400'}`} />
-                          <span className="text-xs font-bold text-slate-200">{o.name}</span>
+                          <Shield className={`w-3.5 h-3.5 ${isRevoked ? 'text-[#ff453a]' : 'text-[#0a84ff]'}`} />
+                          <span className="text-xs font-semibold text-white/90">{o.name}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                          BADGE: {o.badgeId} | VEHICLE: {o.vehicle}
+                        <span className="text-[10px] text-[#86868b] block mt-0.5 apple-tabular">
+                          Badge: {o.badgeId} • Vehicle: {o.vehicle}
                         </span>
                       </div>
                       <button
                         onClick={() => toggleNodeRevocation(o.userId)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-all ${
+                        className={`text-[11px] py-1 px-3 apple-pill-btn font-medium ${
                           isRevoked
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                            ? 'bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 hover:bg-[#30d158]/25'
+                            : 'apple-btn-destructive'
                         }`}
                       >
-                        {isRevoked ? 'RESTORE ACCESS' : 'REVOKE ACCESS'}
+                        {isRevoked ? 'Restore Access' : 'Revoke Access'}
                       </button>
                     </div>
                   );
@@ -209,37 +209,37 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
 
           {/* TAB 2: User Role & Access Management */}
           {activeTab === 'users' && (
-            <div className="space-y-4">
-              <span className="text-xs font-mono text-slate-400 uppercase font-bold block">DASHBOARD OPERATORS & COMMAND ROSTER</span>
+            <div className="space-y-3">
+              <span className="text-xs font-medium text-[#86868b] block">Command Roster</span>
 
               <div className="space-y-2.5">
                 {dashboardUsers.map(u => (
-                  <div key={u.id} className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <div key={u.id} className="apple-card p-4 rounded-2xl flex items-center justify-between">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-slate-100">{u.name}</span>
-                        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${
+                        <span className="text-xs font-semibold text-white">{u.name}</span>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
                           u.role === 'SUPER ADMIN'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                            ? 'bg-[#ff9f0a]/20 text-[#ff9f0a] border border-[#ff9f0a]/30'
+                            : 'bg-[#2997ff]/20 text-[#2997ff] border border-[#2997ff]/30'
                         }`}>
                           {u.role}
                         </span>
                       </div>
-                      <span className="text-xs font-mono text-slate-400 block mt-1">{u.email} • {u.zone}</span>
+                      <span className="text-xs text-[#86868b] block mt-1">{u.email} • {u.zone}</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
                       {u.role !== 'SUPER ADMIN' && (
                         <button
                           onClick={() => toggleUserStatus(u.id)}
-                          className={`px-3 py-1.5 rounded text-xs font-mono font-bold border transition-all ${
+                          className={`text-xs py-1.5 px-3.5 apple-pill-btn font-medium ${
                             u.status === 'ACTIVE'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                              ? 'apple-btn-destructive'
+                              : 'bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 hover:bg-[#30d158]/25'
                           }`}
                         >
-                          {u.status === 'ACTIVE' ? 'SUSPEND OPERATOR' : 'ACTIVATE'}
+                          {u.status === 'ACTIVE' ? 'Suspend Operator' : 'Activate'}
                         </button>
                       )}
                     </div>
@@ -251,32 +251,32 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
 
           {/* TAB 3: City Sector & Zoning Access */}
           {activeTab === 'zones' && (
-            <div className="space-y-4">
-              <span className="text-xs font-mono text-slate-400 uppercase font-bold block">CITY-WIDE GEOGRAPHIC SECTOR FILTERING</span>
+            <div className="space-y-3">
+              <span className="text-xs font-medium text-[#86868b] block">Geographic Sector Filtering</span>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
-                  { name: 'ALL SECTORS (GLOBAL)', desc: 'View all Chennai metropolitan units & incidents', id: 'ALL' },
-                  { name: 'ZONE 1 — CHENNAI CENTRAL', desc: 'Central Railway, Mount Road, Harbour', id: 'ZONE_1' },
-                  { name: 'ZONE 2 — T. NAGAR / SOUTH', desc: 'Ranganathan St, Guindy, Velachery', id: 'ZONE_2' },
-                  { name: 'ZONE 3 — ANNA NAGAR / NORTH', desc: 'Tower Park, Koyambedu, Red Hills', id: 'ZONE_3' }
+                  { name: 'All Sectors (Global)', desc: 'View all metropolitan units & incidents', id: 'ALL' },
+                  { name: 'Zone 1 — Chennai Central', desc: 'Central Railway, Mount Road, Harbour', id: 'ZONE_1' },
+                  { name: 'Zone 2 — T. Nagar / South', desc: 'Ranganathan St, Guindy, Velachery', id: 'ZONE_2' },
+                  { name: 'Zone 3 — Anna Nagar / North', desc: 'Tower Park, Koyambedu, Red Hills', id: 'ZONE_3' }
                 ].map(zone => {
                   const isSelected = selectedZone === zone.id;
                   return (
                     <div
                       key={zone.id}
                       onClick={() => onSelectZone(zone.id)}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-950/30'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                          ? 'bg-[#ff9f0a]/10 border-[#ff9f0a]/60 shadow-apple-card ring-1 ring-[#ff9f0a]/30'
+                          : 'apple-card apple-card-hover'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold font-mono text-amber-300">{zone.name}</span>
-                        {isSelected && <Check className="w-4 h-4 text-amber-400" />}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-white">{zone.name}</span>
+                        {isSelected && <Check className="w-4 h-4 text-[#ff9f0a]" />}
                       </div>
-                      <p className="text-[11px] text-slate-400">{zone.desc}</p>
+                      <p className="text-[11px] text-[#86868b]">{zone.desc}</p>
                     </div>
                   );
                 })}
@@ -286,19 +286,19 @@ export const SuperAdminModal: React.FC<SuperAdminModalProps> = ({
 
           {/* TAB 4: Master Emergency Overrides */}
           {activeTab === 'overrides' && (
-            <div className="space-y-4">
-              <span className="text-xs font-mono text-rose-400 uppercase font-bold block">SUPER ADMIN MASTER SYSTEM OVERRIDES</span>
+            <div className="space-y-3">
+              <span className="text-xs font-medium text-[#ff453a] block">Emergency Overrides</span>
 
-              <div className="p-4 bg-rose-950/20 border border-rose-500/30 rounded-xl flex items-center justify-between">
+              <div className="apple-card p-4 rounded-2xl flex items-center justify-between border border-[#ff453a]/25 bg-[#ff453a]/5">
                 <div>
-                  <h4 className="text-xs font-bold text-rose-300 font-mono">EMERGENCY FLEET GROUNDING OVERRIDE</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Force recall all airborne reconnaissance drones back to dock immediately.</p>
+                  <h4 className="text-xs font-semibold text-[#ff453a]">Emergency Fleet Grounding</h4>
+                  <p className="text-[11px] text-[#86868b] mt-0.5">Force recall all airborne reconnaissance drones back to dock immediately.</p>
                 </div>
                 <button
                   onClick={onRecallAllDrones}
-                  className="bg-rose-600 hover:bg-rose-500 text-slate-950 font-bold px-3 py-1.5 rounded text-xs font-mono transition-all shadow-md shadow-rose-950"
+                  className="apple-pill-btn bg-[#ff453a] hover:bg-[#ff5147] text-white text-xs font-medium px-4 py-2 shadow-lg shadow-[#ff453a]/30"
                 >
-                  GROUND ALL DRONES
+                  Ground All Drones
                 </button>
               </div>
             </div>

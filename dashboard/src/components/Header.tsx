@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Activity, AlertTriangle, Cpu, Terminal, Trash2, LogOut, UserCheck, Sliders, Navigation, Clock } from 'lucide-react';
+import { Shield, Activity, Terminal, Trash2, LogOut, UserCheck, Sliders, Navigation, Clock, Cpu } from 'lucide-react';
 import { Case } from '../types';
 import { UserSession } from './DashboardAuthScreen';
 
@@ -13,7 +13,7 @@ interface HeaderProps {
   session?: UserSession | null;
   onLogout?: () => void;
   operatorLocation?: { lat: number; lng: number; accuracy?: number; timestamp?: number } | null;
-  gpsStatus?: 'acquiring' | 'locked' | 'denied' | 'unsupported';
+  gpsStatus?: 'acquiring' | 'locked' | 'denied' | 'unsupported' | 'manual_pick';
   onForceRequestGps?: () => void;
 }
 
@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
       if (session?.expiresAt) {
         const diff = session.expiresAt - Date.now();
         if (diff <= 0) {
-          setSessionRemaining('EXPIRED');
+          setSessionRemaining('Expired');
         } else {
           const hours = Math.floor(diff / (1000 * 60 * 60));
           const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -55,106 +55,95 @@ export const Header: React.FC<HeaderProps> = ({
   }, [session]);
 
   const activeCases = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
-  const criticalCases = cases.filter(c => c.severityScore >= 4 && c.status !== 'resolved');
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between shadow-2xl z-30 relative select-none">
+    <header className="apple-glass-nav h-14 px-5 flex items-center justify-between z-30 relative select-none">
       {/* Brand & System Title */}
-      <div className="flex items-center space-x-3.5">
-        <div className="bg-cyan-500/10 p-2 rounded-xl border border-cyan-500/30 flex items-center justify-center shadow-lg shadow-cyan-500/10">
-          <Shield className="w-6 h-6 text-cyan-400 animate-pulse" />
+      <div className="flex items-center space-x-3">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-[#2997ff]/20 to-[#0071e3]/30 border border-[#2997ff]/30 flex items-center justify-center shadow-[0_2px_10px_rgba(0,113,227,0.25)]">
+          <Shield className="w-4 h-4 text-[#2997ff]" />
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="font-display font-bold text-lg tracking-wider text-white">NIRAI C2</h1>
-            <span className="bg-cyan-500/20 text-cyan-300 text-[10px] px-2 py-0.5 rounded font-mono font-bold border border-cyan-500/40">
-              v2.0 PRO
+            <h1 className="apple-headline text-[15px] font-semibold text-white tracking-tight">NIRAI C2</h1>
+            <span className="bg-white/[0.08] text-white/90 text-[10px] px-2 py-0.5 rounded-full font-medium border border-white/[0.1]">
+              Pro
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 font-mono">Emergency Command & Control Hub</p>
+          <p className="text-[11px] text-[#86868b] -mt-0.5">Command & Control</p>
         </div>
       </div>
 
       {/* Center Live Status Counters & Real-Time GPS Telemetry */}
-      <div className="hidden lg:flex items-center space-x-3.5">
+      <div className="hidden lg:flex items-center space-x-2.5">
         {/* Real-time Operator GPS Indicator */}
-        <div
+        <button
           onClick={onForceRequestGps}
-          className={`px-3 py-1.5 rounded-xl border flex items-center space-x-2.5 font-mono cursor-pointer transition-all ${
+          className={`apple-pill-btn px-3 py-1.5 flex items-center space-x-2 border transition-all ${
             gpsStatus === 'locked' && operatorLocation
-              ? 'bg-slate-950 border-emerald-500/40 hover:border-emerald-400 shadow-md shadow-emerald-950/20'
-              : 'bg-slate-950 border-amber-500/40 hover:border-amber-400 animate-pulse'
+              ? 'bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08]'
+              : 'bg-amber-500/[0.08] border-amber-500/20 hover:bg-amber-500/[0.15]'
           }`}
           title="Click to re-verify live device GPS fix"
         >
           {gpsStatus === 'locked' ? (
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-ping" />
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#30d158] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#30d158]"></span>
+            </span>
           ) : (
-            <Navigation className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            <Navigation className="w-3 h-3 text-[#ff9f0a] animate-spin" />
           )}
-          <div className="text-left">
-            <div className="flex items-center space-x-1.5">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block leading-tight">
-                C2 STATION LIVE GPS
-              </span>
-              <span className={`text-[8px] px-1 rounded font-bold uppercase ${
-                gpsStatus === 'locked' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
-              }`}>
-                {gpsStatus === 'locked' ? 'FIXED' : 'ACQUIRING'}
-              </span>
-            </div>
-            <span className="text-[11px] font-bold text-slate-100 block leading-tight">
+          <div className="text-left flex items-center space-x-1.5">
+            <span className="text-[10px] font-medium text-[#86868b]">HQ GPS:</span>
+            <span className="text-[11px] font-medium text-[#f5f5f7] apple-tabular">
               {operatorLocation
-                ? `${operatorLocation.lat.toFixed(4)}°N, ${operatorLocation.lng.toFixed(4)}°E (±${operatorLocation.accuracy || 5}m)`
-                : 'Acquiring Real-time GPS...'}
+                ? `${operatorLocation.lat.toFixed(4)}°, ${operatorLocation.lng.toFixed(4)}°`
+                : 'Acquiring...'}
             </span>
           </div>
+        </button>
+
+        {/* Session TTL Badge */}
+        <div className="apple-pill-btn bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 flex items-center space-x-1.5">
+          <Clock className="w-3 h-3 text-[#2997ff]" />
+          <span className="text-[10px] text-[#86868b]">Session:</span>
+          <span className="text-[11px] font-medium text-[#2997ff] apple-tabular">{sessionRemaining}</span>
         </div>
 
-        {/* 24-Hour Session TTL Badge */}
-        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2 font-mono">
-          <Clock className="w-3.5 h-3.5 text-cyan-400" />
-          <div className="text-left">
-            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">SESSION (1 DAY)</span>
-            <span className="text-xs font-bold text-cyan-300 leading-tight">{sessionRemaining}</span>
-          </div>
+        {/* Active SOS Badge */}
+        <div className="apple-pill-btn bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 flex items-center space-x-1.5">
+          <span className={`w-2 h-2 rounded-full ${activeCases.length > 0 ? 'bg-[#ff453a] animate-apple-pulse' : 'bg-[#30d158]'}`} />
+          <span className="text-[10px] text-[#86868b]">Incidents:</span>
+          <span className={`text-[11px] font-semibold apple-tabular ${activeCases.length > 0 ? 'text-[#ff453a]' : 'text-[#30d158]'}`}>
+            {activeCases.length}
+          </span>
         </div>
 
-        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2.5 font-mono">
-          <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-          <div className="text-left">
-            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">ACTIVE SOS</span>
-            <span className="text-xs font-bold text-rose-300 leading-tight">{activeCases.length}</span>
-          </div>
-        </div>
-
-        <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2 font-mono">
-          <Activity className="w-3.5 h-3.5 text-emerald-400" />
-          <div className="text-left">
-            <span className="text-[9px] text-slate-400 block font-semibold leading-tight uppercase">GATEWAY</span>
-            <span className="text-[10px] font-bold uppercase text-emerald-300 whitespace-nowrap">
-              {isConnected ? 'ONLINE (WS+SYNC)' : 'ONLINE (FIREBASE)'}
-            </span>
-          </div>
+        {/* Gateway Connection Status */}
+        <div className="apple-pill-btn bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 flex items-center space-x-1.5">
+          <Activity className="w-3 h-3 text-[#30d158]" />
+          <span className="text-[10px] text-[#86868b]">Gateway:</span>
+          <span className="text-[10px] font-medium text-[#30d158]">
+            {isConnected ? 'Online' : 'Standby'}
+          </span>
         </div>
       </div>
 
       {/* Right Toolbar Controls */}
-      <div className="flex items-center space-x-2.5">
+      <div className="flex items-center space-x-2">
         {/* User Session Badge */}
         {session && (
-          <div className="h-9 bg-slate-950 px-3 rounded-xl border border-slate-800 flex items-center space-x-2">
-            <UserCheck className="w-4 h-4 text-cyan-400" />
-            <div className="text-left font-mono flex items-center space-x-2">
-              <span className="text-xs font-bold text-slate-200 max-w-[130px] truncate">{session.name}</span>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase whitespace-nowrap ${
-                session.isSuperAdmin
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-              }`}>
-                {session.role}
-              </span>
-            </div>
+          <div className="h-8 bg-white/[0.04] border border-white/[0.08] px-3 rounded-full flex items-center space-x-2">
+            <UserCheck className="w-3.5 h-3.5 text-[#2997ff]" />
+            <span className="text-[12px] font-medium text-white/90 max-w-[120px] truncate">{session.name}</span>
+            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+              session.isSuperAdmin
+                ? 'bg-[#ff9f0a]/20 text-[#ff9f0a] border border-[#ff9f0a]/30'
+                : 'bg-[#2997ff]/20 text-[#2997ff] border border-[#2997ff]/30'
+            }`}>
+              {session.role}
+            </span>
           </div>
         )}
 
@@ -162,45 +151,48 @@ export const Header: React.FC<HeaderProps> = ({
         {session?.isSuperAdmin && onOpenSuperAdminModal && (
           <button
             onClick={onOpenSuperAdminModal}
-            className="h-9 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 text-xs px-3.5 rounded-xl inline-flex items-center space-x-1.5 transition-all font-mono font-bold shadow-md shadow-amber-950/40 whitespace-nowrap"
+            className="apple-pill-btn h-8 bg-amber-500/10 hover:bg-amber-500/20 text-[#ff9f0a] border border-amber-500/30 text-[11px] px-3 inline-flex items-center space-x-1.5 transition-all font-medium"
           >
-            <Sliders className="w-3.5 h-3.5 text-amber-400" />
-            <span>ADMIN CONSOLE</span>
+            <Sliders className="w-3 h-3" />
+            <span>Admin</span>
           </button>
         )}
 
+        {/* Erase All Button */}
         <button
           onClick={onClearAllRecords}
-          className="h-9 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/50 text-xs px-3.5 rounded-xl inline-flex items-center space-x-1.5 transition-all font-mono font-bold shadow-md shadow-rose-950/40 whitespace-nowrap"
+          className="apple-btn-destructive h-8 text-[11px] px-3 inline-flex items-center space-x-1.5 font-medium"
         >
-          <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-          <span>ERASE ALL</span>
+          <Trash2 className="w-3 h-3" />
+          <span>Reset All</span>
         </button>
 
+        {/* Simulator Button */}
         <button
           onClick={onOpenSimulator}
-          className="h-9 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs px-3.5 rounded-xl inline-flex items-center space-x-1.5 transition-all font-mono font-semibold whitespace-nowrap"
+          className="apple-btn-secondary h-8 text-[11px] px-3 inline-flex items-center space-x-1.5 font-medium"
         >
-          <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-          <span>SIMULATOR</span>
+          <Terminal className="w-3 h-3 text-[#2997ff]" />
+          <span>Simulator</span>
         </button>
 
+        {/* Audit / Evidence Log Button */}
         <button
           onClick={onOpenAuditLog}
-          className="h-9 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs px-3.5 rounded-xl inline-flex items-center space-x-1.5 transition-all font-mono font-semibold whitespace-nowrap"
+          className="apple-btn-secondary h-8 text-[11px] px-3 inline-flex items-center space-x-1.5 font-medium"
         >
-          <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-          <span>EVIDENCE LOG</span>
+          <Cpu className="w-3 h-3 text-[#bf5af2]" />
+          <span>Audit Log</span>
         </button>
 
+        {/* Log Out Button */}
         {onLogout && (
           <button
             onClick={onLogout}
-            title="Terminate C2 Session & Log Out"
-            className="h-9 bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs px-3 rounded-xl inline-flex items-center space-x-1 transition-all font-mono font-semibold"
+            title="Log Out"
+            className="apple-btn-secondary h-8 text-[11px] px-2.5 inline-flex items-center space-x-1 text-[#86868b] hover:text-[#ff453a]"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">EXIT</span>
           </button>
         )}
       </div>

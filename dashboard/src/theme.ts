@@ -1,51 +1,74 @@
-// NIRAI Command & Control Theme Tokens
-// High-contrast dark theme inspired by tactical command screens.
+// NIRAI Command & Control — Apple-Grade SaaS Theme Tokens
+// Inspired by Apple Human Interface Guidelines & macOS / visionOS Pro Materials
 
 export const theme = {
   colors: {
     background: {
-      base: '#020617',     // Slate 950 - tactical deep background
-      surface: '#0f172a',  // Slate 900 - card/panel surface
-      elevated: '#1e293b', // Slate 800 - popover/elevated surface
-      active: '#0f172a',
+      base: '#000000',     // Apple Pure Black Canvas
+      surface: '#1c1c1e',  // Apple System Gray 6 (Panel / Card surface)
+      elevated: '#2c2c2e', // Apple System Gray 5 (Popover / Floating widget)
+      active: '#3a3a3c',   // Apple System Gray 4 (Active / Pressed surface)
+      glass: 'rgba(28, 28, 30, 0.75)', // Frosted glass backdrop fill
     },
     border: {
-      subtle: '#1e293b',   // Slate 800 - panel separators
-      normal: '#334155',   // Slate 700 - element outlines
-      focus: '#06b6d4',    // Cyan 500 - interactive active borders
+      subtle: 'rgba(255, 255, 255, 0.08)',  // Apple 1px hairline divider
+      normal: 'rgba(255, 255, 255, 0.12)',  // Card / element boundary
+      focus: '#2997ff',                      // Apple Action Blue focus ring
+      specular: 'rgba(255, 255, 255, 0.18)', // Top-edge light reflection
     },
     text: {
-      primary: '#f8fafc',   // Slate 50 - high contrast body/titles
-      secondary: '#94a3b8', // Slate 400 - secondary labels
-      muted: '#64748b',     // Slate 500 - disabled/subtle text
-      bright: '#ffffff',
+      primary: '#f5f5f7',   // Apple Parchment / SF Pro Primary
+      secondary: '#86868b', // Apple System Gray Text
+      muted: '#6e6e73',     // Apple Secondary System Fill / Muted
+      bright: '#ffffff',    // Pure White for high emphasis
+      link: '#2997ff',      // Apple Action Link Blue
     },
     status: {
-      critical: '#ef4444',  // Red 500 - zone red / alert critical
-      warning: '#f59e0b',   // Amber 500 - zone yellow / alert high / offline
-      nominal: '#10b981',   // Emerald 500 - zone green / alert low
-      info: '#3b82f6',      // Blue 500 - police/normal status
+      critical: '#ff453a',  // Apple System Red
+      warning: '#ff9f0a',   // Apple System Orange
+      nominal: '#30d158',   // Apple System Green
+      info: '#0a84ff',      // Apple System Blue
     },
     telemetry: {
-      aiAccent: '#d946ef',  // Fuchsia 500 - AI-derived telemetry highlights
-      droneCyan: '#06b6d4', // Cyan 500 - drones / active map tools
-      motherPurple: '#a855f7', // Purple 500 - Mother Drones
+      aiAccent: '#bf5af2',  // Apple Intelligence Purple
+      droneCyan: '#64d2ff', // Apple Light Blue / Cyan
+      motherPurple: '#af52de', // Deep Apple Purple
+    },
+    action: {
+      primary: '#0071e3',   // Signature Apple Action Blue
+      primaryHover: '#0077ed',
+      primaryActive: '#0062c4',
+      primaryOnDark: '#2997ff',
     },
   },
   typography: {
-    fontSans: 'Inter, system-ui, sans-serif',
-    fontMono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    fontSans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif',
+    fontDisplay: '-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, system-ui, sans-serif',
+    fontMono: '"SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    tracking: {
+      hero: '-0.03em',
+      display: '-0.025em',
+      body: '-0.011em',
+      caption: '-0.006em',
+    },
   },
   transitions: {
-    duration: '200ms',
-    easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    duration: '180ms',
+    easing: 'cubic-bezier(0.25, 1, 0.5, 1)', // Apple Fluid Spring curve
   },
   radii: {
-    sm: '0.25rem',   // 4px
-    md: '0.375rem',  // 6px
-    lg: '0.5rem',    // 8px
-    xl: '0.75rem',   // 12px
-    xxl: '1rem',     // 16px
+    sm: '8px',
+    md: '12px',
+    lg: '18px',
+    xl: '24px',
+    xxl: '32px',
     full: '9999px',
+    pill: '9999px',
+  },
+  shadows: {
+    card: '0 4px 20px -2px rgba(0, 0, 0, 0.4)',
+    glass: '0 12px 32px 0 rgba(0, 0, 0, 0.37)',
+    specular: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.12)',
+    pill: '0 2px 8px rgba(0, 113, 227, 0.3)',
   },
 };

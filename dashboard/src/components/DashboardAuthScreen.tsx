@@ -271,165 +271,168 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-screen bg-[#000000] flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
+      {/* Background ambient lighting */}
+      <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-[#0071e3]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-[#bf5af2]/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl relative z-10">
+      <div className="w-full max-w-md apple-glass rounded-3xl p-8 relative z-10">
         {/* Header Logo */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-14 h-14 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/20 mb-3 border border-cyan-400/30">
-            <Shield className="w-7 h-7 text-slate-950 font-bold" />
+          <div className="w-14 h-14 bg-gradient-to-b from-[#2997ff] to-[#0071e3] rounded-2xl flex items-center justify-center shadow-[0_4px_20px_rgba(0,113,227,0.35)] mb-3 border border-white/20">
+            <Shield className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold font-display tracking-wider text-slate-100">NIRAI C2 HUB</h1>
-          <p className="text-xs text-slate-400 font-mono mt-1">Networked Intelligent Rapid-response Infrastructure</p>
-          <div className="mt-2 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[10px] font-mono text-cyan-400">
-            <span>SESSION VALIDITY: 24 HOURS</span>
+          <h1 className="text-2xl font-semibold apple-headline text-white tracking-tight">NIRAI C2</h1>
+          <p className="text-xs text-[#86868b] mt-0.5">Emergency Command & Control Hub</p>
+          <div className="mt-2.5 inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-[11px] text-[#2997ff] apple-tabular">
+            <span>Session: 24 Hours</span>
           </div>
         </div>
 
         {/* Real-time GPS Access Verification Box */}
-        <div className={`mb-6 p-3 rounded-xl border font-mono text-xs transition-all ${
+        <div className={`mb-5 p-3 rounded-2xl border text-xs transition-all ${
           gpsStatus === 'locked' && gpsLocation
-            ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+            ? 'bg-[#30d158]/10 border-[#30d158]/20 text-[#30d158]'
             : gpsStatus === 'denied'
-            ? 'bg-rose-950/40 border-rose-500/50 text-rose-300'
-            : 'bg-cyan-950/30 border-cyan-500/40 text-cyan-300'
+            ? 'bg-[#ff453a]/15 border-[#ff453a]/30 text-[#ff453a]'
+            : 'bg-[#2997ff]/10 border-[#2997ff]/20 text-[#2997ff]'
         }`}>
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center space-x-2">
               {gpsStatus === 'locked' ? (
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#30d158] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#30d158]"></span>
+                </span>
               ) : (
-                <Navigation className="w-4 h-4 text-cyan-400 animate-spin" />
+                <Navigation className="w-3.5 h-3.5 text-[#2997ff] animate-spin" />
               )}
-              <span className="font-bold uppercase tracking-wider text-[11px]">
-                {gpsStatus === 'locked' ? 'REAL-TIME GPS TELEMETRY LOCKED' : 'MANDATORY GPS POSITIONING'}
+              <span className="font-semibold text-[11px]">
+                {gpsStatus === 'locked' ? 'GPS Telemetry Fixed' : 'GPS Verification Required'}
               </span>
             </div>
             {gpsStatus === 'denied' && (
               <button
                 type="button"
                 onClick={() => requestGpsNow().catch(console.error)}
-                className="text-[10px] bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded font-bold uppercase transition-all"
+                className="text-[10px] bg-[#ff453a] text-white px-2.5 py-0.5 rounded-full font-medium"
               >
-                GRANT ACCESS
+                Grant Access
               </button>
             )}
           </div>
 
           {gpsStatus === 'locked' && gpsLocation ? (
-            <div className="text-[11px] space-y-0.5 text-emerald-200/90 font-mono">
+            <div className="text-[11px] space-y-0.5 text-white/80 apple-tabular">
               <div className="flex items-center justify-between">
-                <span>Coordinates:</span>
-                <span className="font-bold text-white">
+                <span>Location:</span>
+                <span className="font-medium text-white">
                   {gpsLocation.lat.toFixed(5)}°, {gpsLocation.lng.toFixed(5)}°
                 </span>
               </div>
-              <div className="flex items-center justify-between text-[10px] text-emerald-300/80">
+              <div className="flex items-center justify-between text-[10px] text-[#86868b]">
                 <span>Accuracy: ±{gpsLocation.accuracy}m</span>
-                <span className="text-emerald-400 font-bold">100% LIVE GPS</span>
+                <span className="text-[#30d158] font-medium">Live GPS Sensor</span>
               </div>
             </div>
           ) : (
-            <div className="text-[11px] text-slate-300">
-              {gpsErrorMsg || 'Acquiring real-time high-accuracy satellite GPS coordinates from device sensor...'}
+            <div className="text-[11px] text-white/70">
+              {gpsErrorMsg || 'Acquiring satellite GPS coordinates from device sensor...'}
             </div>
           )}
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-950 p-1 rounded-xl mb-6 border border-slate-800">
+        {/* Tab Switcher (Apple Segmented Capsule) */}
+        <div className="flex bg-black/40 p-1 rounded-full mb-5 border border-white/[0.08]">
           <button
             onClick={() => { setActiveTab('login'); setError(null); }}
-            className={`flex-1 py-2.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
+            className={`flex-1 py-1.5 text-xs font-medium rounded-full transition-all flex items-center justify-center space-x-1.5 ${
               activeTab === 'login'
-                ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white/[0.15] text-white shadow-sm'
+                : 'text-[#86868b] hover:text-white'
             }`}
           >
             <LogIn className="w-3.5 h-3.5" />
-            <span>SIGN IN</span>
+            <span>Sign In</span>
           </button>
           <button
             onClick={() => { setActiveTab('register'); setError(null); }}
-            className={`flex-1 py-2.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
+            className={`flex-1 py-1.5 text-xs font-medium rounded-full transition-all flex items-center justify-center space-x-1.5 ${
               activeTab === 'register'
-                ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-white/[0.15] text-white shadow-sm'
+                : 'text-[#86868b] hover:text-white'
             }`}
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>CREATE ACCOUNT</span>
+            <span>Create Account</span>
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-2 text-rose-400 text-xs">
+          <div className="mb-4 p-3 bg-[#ff453a]/15 border border-[#ff453a]/30 rounded-xl flex items-center space-x-2 text-[#ff453a] text-xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={activeTab === 'login' ? handleLogin : handleRegister} className="space-y-4">
+        <form onSubmit={activeTab === 'login' ? handleLogin : handleRegister} className="space-y-3.5">
           {activeTab === 'register' && (
             <div>
-              <label className="block text-[11px] font-mono text-slate-400 mb-1.5 uppercase font-bold">Full Name</label>
+              <label className="block text-[11px] font-medium text-[#86868b] mb-1">Full Name</label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                <User className="w-4 h-4 text-[#86868b] absolute left-3 top-3" />
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Officer / Operator Name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all"
+                  className="w-full bg-black/50 border border-white/[0.1] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-[#6e6e73] focus:outline-none focus:border-[#2997ff] transition-all"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1.5 uppercase font-bold">Email Address</label>
+            <label className="block text-[11px] font-medium text-[#86868b] mb-1">Email Address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <Mail className="w-4 h-4 text-[#86868b] absolute left-3 top-3" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="operator@police.tn.gov.in"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all font-mono"
+                placeholder="operator@c2.gov.in"
+                className="w-full bg-black/50 border border-white/[0.1] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-[#6e6e73] focus:outline-none focus:border-[#2997ff] transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1.5 uppercase font-bold">Password</label>
+            <label className="block text-[11px] font-medium text-[#86868b] mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <Lock className="w-4 h-4 text-[#86868b] absolute left-3 top-3" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all font-mono"
+                className="w-full bg-black/50 border border-white/[0.1] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-[#6e6e73] focus:outline-none focus:border-[#2997ff] transition-all"
               />
             </div>
           </div>
 
           {activeTab === 'register' && (
             <div>
-              <label className="block text-[11px] font-mono text-slate-400 mb-1.5 uppercase font-bold">C2 Access Role</label>
+              <label className="block text-[11px] font-medium text-[#86868b] mb-1">Access Role</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 transition-all font-mono"
+                className="w-full bg-black/50 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#2997ff] transition-all"
               >
-                <option value="OPERATOR">Operator (Control Room)</option>
+                <option value="OPERATOR">Operator (Control Center)</option>
                 <option value="FIELD COMMANDER">Field Commander</option>
               </select>
             </div>
@@ -438,19 +441,19 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs tracking-wider uppercase transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 mt-2"
+            className="w-full apple-btn-primary font-medium py-2.5 px-4 text-xs tracking-normal transition-all disabled:opacity-50 mt-2"
           >
-            {loading ? 'AUTHENTICATING & ACQUIRING GPS...' : activeTab === 'login' ? 'SIGN IN WITH LIVE GPS' : 'CREATE ACCOUNT & VERIFY'}
+            {loading ? 'Authenticating...' : activeTab === 'login' ? 'Sign In with Live GPS' : 'Create Account'}
           </button>
         </form>
 
         {/* Divider */}
-        <div className="relative my-6">
+        <div className="relative my-5">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-800" />
+            <div className="w-full border-t border-white/[0.08]" />
           </div>
-          <div className="relative flex justify-center text-[10px] uppercase font-mono">
-            <span className="bg-slate-900 px-3 text-slate-500">OR AUTHENTICATE WITH</span>
+          <div className="relative flex justify-center text-[11px]">
+            <span className="bg-[#1c1c1e] px-3 text-[#86868b]">or</span>
           </div>
         </div>
 
@@ -459,7 +462,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
           type="button"
           onClick={handleGoogleOAuth}
           disabled={loading}
-          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-mono text-xs py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 transition-all"
+          className="w-full apple-btn-secondary text-xs py-2 px-4 rounded-full flex items-center justify-center space-x-2 font-medium"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -479,7 +482,7 @@ export const DashboardAuthScreen: React.FC<DashboardAuthScreenProps> = ({ onLogi
               d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.61l3.99 3.15c.95-2.85 3.6-4.96 6.72-4.96z"
             />
           </svg>
-          <span>CONTINUE WITH GOOGLE (OAUTH)</span>
+          <span>Continue with Google</span>
         </button>
       </div>
     </div>
