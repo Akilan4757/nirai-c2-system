@@ -21,19 +21,17 @@ import {
   MapPin, 
   Crosshair, 
   PanelLeft, 
-  PanelRight, 
   ShieldCheck, 
   Minimize2, 
   Maximize2, 
-  Video, 
   Layers,
-  Sparkles
+  X
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`;
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:4000`;
 
-// Picture-in-Picture Drone Optical HUD Window
+// Picture-in-Picture Drone Optical HUD Window (Liquid Glass)
 const FloatingDronePiP: React.FC<{
   drone: Drone;
   onClose?: () => void;
@@ -41,17 +39,17 @@ const FloatingDronePiP: React.FC<{
   const [isMinimized, setIsMinimized] = useState(false);
 
   return (
-    <div className="apple-glass rounded-2xl overflow-hidden shadow-2xl border border-white/[0.15] transition-all select-none animate-slideInRight">
-      <div className="px-3 py-1.5 bg-black/60 border-b border-white/[0.08] flex items-center justify-between">
+    <div className="liquid-glass rounded-2xl overflow-hidden shadow-2xl border border-white/[0.14] transition-all select-none animate-slideInRight">
+      <div className="px-3 py-1.5 bg-black/40 border-b border-white/[0.08] flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-[#ff453a] animate-apple-pulse"></span>
-          <span className="text-[11px] font-semibold text-white">Live Recon HUD</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ff453a] animate-apple-pulse"></span>
+          <span className="text-[11px] font-semibold text-white tracking-tight">Recon Feed</span>
           <span className="text-[10px] text-[#2997ff] apple-tabular">{drone.name}</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
+            className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs transition-colors"
             title={isMinimized ? "Expand PiP" : "Minimize PiP"}
           >
             {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
@@ -59,9 +57,9 @@ const FloatingDronePiP: React.FC<{
           {onClose && (
             <button
               onClick={onClose}
-              className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
+              className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white text-xs transition-colors"
             >
-              ✕
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -74,8 +72,8 @@ const FloatingDronePiP: React.FC<{
             <video src={drone.streamUrl || undefined} autoPlay loop muted playsInline className="w-full h-full object-cover" />
           )}
           <div className="absolute top-2 left-2 text-[9px] bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-full text-[#30d158] border border-white/10 apple-tabular flex items-center space-x-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#30d158] animate-pulse"></span>
-            <span>1080p • {drone.batteryPct}% BAT • {drone.altitudeMeters}m</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#30d158]"></span>
+            <span>1080p • {drone.batteryPct}% BAT</span>
           </div>
           <div className="absolute bottom-2 right-2 text-[9px] bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-full text-white/90 border border-white/10 apple-tabular">
             {drone.location.lat.toFixed(4)}°, {drone.location.lng.toFixed(4)}°
@@ -117,10 +115,9 @@ export function App() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // UI Spatial States (Spatial Full-bleed Mode)
+  // Spatial Dashboard Controls
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
-  const [isRightInspectorOpen, setIsRightInspectorOpen] = useState(true);
-  const [rightPanelTab, setRightPanelTab] = useState<'inspector' | 'police'>('inspector');
+  const [showPoliceUnitsDrawer, setShowPoliceUnitsDrawer] = useState(false);
   const [showConnectedNodes, setShowConnectedNodes] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(soundFX.getMuted());
@@ -133,7 +130,7 @@ export function App() {
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [dispatchModalCaseId, setDispatchModalCaseId] = useState<string | null>(null);
 
-  // Refs for callbacks & tracking new cases
+  // Refs
   const sessionRef = useRef(userSession);
   useEffect(() => { sessionRef.current = userSession; }, [userSession]);
 
@@ -284,9 +281,7 @@ export function App() {
             const fbMap = new Map<string, Case>();
             fbCases.forEach(c => fbMap.set(c.id, c));
             prev.forEach(c => { if (!fbMap.has(c.id)) fbMap.set(c.id, c); });
-            const result = Array.from(fbMap.values());
-            if (result.length > 0) setSelectedCaseId(p => p || result[0].id);
-            return result;
+            return Array.from(fbMap.values());
           });
         }
       }, (err) => console.warn('Firebase Cases Sync Warning:', err.message));
@@ -326,12 +321,10 @@ export function App() {
             setOfficers(msg.payload.officers);
             setDrones(msg.payload.drones);
             setAuditLogs(msg.payload.auditLogs);
-            if (msg.payload.cases.length > 0) setSelectedCaseId(p => p || msg.payload.cases[0].id);
           } else if (msg.type === 'CASE_CREATED') {
             soundFX.playSosChime();
             setCases(prev => prev.some(c => c.id === msg.payload.id) ? prev.map(c => c.id === msg.payload.id ? msg.payload : c) : [msg.payload, ...prev]);
             setSelectedCaseId(msg.payload.id);
-            setIsRightInspectorOpen(true);
           } else if (msg.type === 'CASE_UPDATED') {
             setCases(prev => prev.map(c => c.id === msg.payload.id ? msg.payload : c));
           } else if (msg.type === 'OFFICER_LOCATION_UPDATED') {
@@ -359,14 +352,14 @@ export function App() {
     return () => { shouldReconnect = false; ws?.close(); unsubscribeCases(); unsubscribeAudit(); };
   }, []);
 
-  // Keyboard Shortcuts Engine (Raycast / Apple Navigation)
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
 
-      // Command + K or Ctrl + K -> Open Command Palette
+      // Command + K or Ctrl + K -> Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsCommandPaletteOpen(prev => !prev);
@@ -374,7 +367,7 @@ export function App() {
         return;
       }
 
-      // [ -> Toggle Left Alert Queue
+      // [ -> Toggle Left Drawer
       if (e.key === '[') {
         e.preventDefault();
         setIsLeftSidebarOpen(prev => !prev);
@@ -382,52 +375,43 @@ export function App() {
         return;
       }
 
-      // ] -> Toggle Right Inspector
-      if (e.key === ']') {
-        e.preventDefault();
-        setIsRightInspectorOpen(prev => !prev);
-        soundFX.playClickTick();
-        return;
-      }
-
-      // Esc -> Close open modal or deselect
+      // Esc -> Deselect incident or close open modal
       if (e.key === 'Escape') {
         if (isCommandPaletteOpen) setIsCommandPaletteOpen(false);
         else if (isAuditModalOpen) setIsAuditModalOpen(false);
         else if (isSimulatorOpen) setIsSimulatorOpen(false);
         else if (isSuperAdminModalOpen) setIsSuperAdminModalOpen(false);
+        else if (showPoliceUnitsDrawer) setShowPoliceUnitsDrawer(false);
         else if (dispatchModalCaseId) setDispatchModalCaseId(null);
         else if (selectedCaseId) setSelectedCaseId(null);
         return;
       }
 
-      // J -> Next incident in queue
+      // J -> Next incident
       if (e.key.toLowerCase() === 'j') {
         const active = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
         if (active.length > 0) {
           const idx = active.findIndex(c => c.id === selectedCaseId);
           const nextIdx = (idx + 1) % active.length;
           setSelectedCaseId(active[nextIdx].id);
-          setIsRightInspectorOpen(true);
           soundFX.playClickTick();
         }
         return;
       }
 
-      // K -> Previous incident in queue
+      // K -> Previous incident
       if (e.key.toLowerCase() === 'k') {
         const active = cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm');
         if (active.length > 0) {
           const idx = active.findIndex(c => c.id === selectedCaseId);
           const prevIdx = (idx - 1 + active.length) % active.length;
           setSelectedCaseId(active[prevIdx].id);
-          setIsRightInspectorOpen(true);
           soundFX.playClickTick();
         }
         return;
       }
 
-      // D -> Quick Dispatch Drone to current incident
+      // D -> Dispatch drone
       if (e.key.toLowerCase() === 'd' && selectedCaseId) {
         setDispatchModalCaseId(selectedCaseId);
         soundFX.playClickTick();
@@ -437,14 +421,14 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cases, selectedCaseId, isCommandPaletteOpen, isAuditModalOpen, isSimulatorOpen, isSuperAdminModalOpen, dispatchModalCaseId]);
+  }, [cases, selectedCaseId, isCommandPaletteOpen, isAuditModalOpen, isSimulatorOpen, isSuperAdminModalOpen, showPoliceUnitsDrawer, dispatchModalCaseId]);
 
   const selectedCase = cases.find(c => c.id === selectedCaseId) || null;
   const activeAirborneDrone = drones.find(d => (d.status === 'airborne' || d.streamUrl) && d.type === 'child');
 
   const handleVerifyCase = (caseId: string, isFalseAlarm: boolean) => {
     soundFX.playClickTick();
-    fetch(`${API_BASE}/v1/cases/${caseId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFalseAlarm, notes: 'Verified by operator via call-back.' }) });
+    fetch(`${API_BASE}/v1/cases/${caseId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFalseAlarm, notes: 'Verified by operator call.' }) });
   };
   const handleAssignOfficer = (caseId: string, officerUserId: string) => {
     soundFX.playDispatchConfirm();
@@ -472,7 +456,7 @@ export function App() {
     fetch(`${API_BASE}/v1/officers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'usr-p1', lat, lng, onDuty: true }) }).catch(() => {});
   };
   const handleClearAllRecords = async () => {
-    if (window.confirm('Are you sure you want to ERASE ALL active cases, audit logs, and hardware telemetry from both Cloud Firestore and local server?')) {
+    if (window.confirm('Erase all active cases, audit logs, and hardware telemetry from both Cloud Firestore and server?')) {
       setCases([]); setAuditLogs([]); setSelectedCaseId(null);
       setDrones(prev => prev.map(d => ({ ...d, status: 'docked', altitudeMeters: 0, speedKmh: 0 })));
       try {
@@ -485,7 +469,7 @@ export function App() {
     }
   };
   const handleCancelCase = async (caseId: string) => {
-    if (window.confirm(`Cancel case ${caseId}? This will mark it as false alarm and recall any dispatched units.`)) {
+    if (window.confirm(`Cancel case ${caseId}? This will mark it as false alarm and recall dispatched units.`)) {
       setCases(prev => prev.filter(c => c.id !== caseId));
       try { await deleteDoc(doc(db, 'cases', caseId)); } catch (err) { try { await setDoc(doc(db, 'cases', caseId), { status: 'false_alarm', cancelledBy: 'operator-c2' }, { merge: true }); } catch (e) {} }
       fetch(`${API_BASE}/v1/cases/${caseId}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cancelledBy: 'operator-c2' }) }).catch(() => {});
@@ -515,7 +499,7 @@ export function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#000000] text-[#f5f5f7] select-none">
-      {/* Top Apple Frosted Navigation Bar */}
+      {/* Liquid Glass Navigation Bar */}
       <Header
         cases={cases}
         isConnected={isConnected}
@@ -539,12 +523,12 @@ export function App() {
         }}
       />
 
-      {/* GPS denied/unsupported alert banner */}
+      {/* GPS denied alert banner */}
       {(gpsStatus === 'denied' || gpsStatus === 'unsupported') && !operatorLocation && (
         <div className="bg-[#ff453a]/15 border-b border-[#ff453a]/25 px-6 py-2 flex items-center justify-between text-xs text-[#f5f5f7] z-30">
           <div className="flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 text-[#ff453a]" />
-            <span>GPS access was denied. Enable browser location or select your station position on the map.</span>
+            <span>GPS access denied. Enable device location or pick station location on map.</span>
           </div>
           <div className="flex items-center space-x-2">
             <button onClick={acquireLiveGps} className="apple-btn-secondary text-[11px] py-1 px-3 font-medium">Retry GPS</button>
@@ -553,9 +537,9 @@ export function App() {
         </div>
       )}
 
-      {/* Full-Bleed Spatial Map Canvas + Floating Chrome Overlay */}
+      {/* Full-Bleed Spatial Map Canvas */}
       <main className="flex-1 relative w-full h-full overflow-hidden">
-        {/* Layer 0: Full-Screen Live Map Canvas */}
+        {/* Layer 0: Map Canvas */}
         <div className="absolute inset-0 z-0">
           <LiveMap
             cases={cases}
@@ -564,7 +548,7 @@ export function App() {
             selectedCaseId={selectedCaseId}
             onSelectCase={(id) => {
               setSelectedCaseId(id);
-              setIsRightInspectorOpen(true);
+              setShowPoliceUnitsDrawer(false);
             }}
             operatorLocation={operatorLocation}
             gpsStatus={gpsStatus}
@@ -572,10 +556,10 @@ export function App() {
           />
         </div>
 
-        {/* Floating Left Drawer: Incident Dispatch Queue */}
+        {/* Floating Left Drawer: Incident Queue (320px, Liquid Glass) */}
         <aside
-          className={`absolute top-3 left-3 bottom-3 z-20 w-80 md:w-96 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 ease-out ${
-            isLeftSidebarOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-[110%] opacity-0 pointer-events-none'
+          className={`absolute top-3 left-3 bottom-3 z-20 w-80 rounded-3xl overflow-hidden shadow-2xl transition-all duration-300 ease-out ${
+            isLeftSidebarOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-[115%] opacity-0 pointer-events-none'
           }`}
         >
           <AlertQueue
@@ -583,7 +567,7 @@ export function App() {
             selectedCaseId={selectedCaseId}
             onSelectCase={(id) => {
               setSelectedCaseId(id);
-              setIsRightInspectorOpen(true);
+              setShowPoliceUnitsDrawer(false);
             }}
             onVerifyCase={handleVerifyCase}
             onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
@@ -598,32 +582,48 @@ export function App() {
               soundFX.playClickTick();
               setIsLeftSidebarOpen(true);
             }}
-            className="absolute top-3 left-3 z-20 apple-glass rounded-2xl px-3.5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center space-x-2 hover:border-[#2997ff]/60 transition-all cursor-pointer group"
-            title="Open Incidents ([)"
+            className="absolute top-3 left-3 z-20 liquid-glass-pill rounded-full px-3.5 py-2 shadow-xl flex items-center space-x-2 hover:border-[#2997ff]/60 transition-all cursor-pointer group"
+            title="Open Incident Queue ([)"
           >
             <PanelLeft className="w-4 h-4 text-[#2997ff] group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-semibold text-white">Incidents</span>
-            <span className="text-[10px] bg-[#ff453a]/20 text-[#ff453a] border border-[#ff453a]/30 px-2 py-0.5 rounded-full font-semibold apple-tabular">
+            <span className="text-xs font-medium text-white">Incidents</span>
+            <span className="text-[10px] bg-[#ff453a]/20 text-[#ff453a] px-2 py-0.5 rounded-full font-semibold apple-tabular">
               {cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm').length}
             </span>
           </button>
         )}
 
-        {/* Floating Top Floating Utility Bar (Connected Nodes Pill + Toggle) */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center space-x-2">
+        {/* Top Floating Action Pill: Mesh Nodes & Patrol Units */}
+        <div className="absolute top-3 right-3 z-20 flex items-center space-x-2">
+          {/* Patrol Units Toggle Pill */}
+          <button
+            onClick={() => {
+              soundFX.playClickTick();
+              setShowPoliceUnitsDrawer(!showPoliceUnitsDrawer);
+            }}
+            className={`liquid-glass-pill rounded-full px-3.5 py-1.5 shadow-xl flex items-center space-x-2 text-xs font-medium transition-all ${
+              showPoliceUnitsDrawer ? 'bg-[#0a84ff]/20 border-[#0a84ff]/50 text-white' : 'text-white/80 hover:text-white'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#0a84ff]" />
+            <span>Patrol Units</span>
+            <span className="bg-white/[0.08] text-white/90 text-[10px] px-1.5 py-0.2 rounded-full font-medium apple-tabular">
+              {officers.filter(o => o.onDuty).length}
+            </span>
+          </button>
+
+          {/* Connected Mesh Nodes Pill */}
           <button
             onClick={() => setShowConnectedNodes(!showConnectedNodes)}
-            className="apple-glass rounded-full px-3.5 py-1.5 shadow-xl border border-white/[0.12] flex items-center space-x-2 text-xs font-medium hover:border-[#2997ff]/60 transition-all"
+            className="liquid-glass-pill rounded-full px-3 py-1.5 shadow-xl flex items-center space-x-1.5 text-xs font-medium text-white/80 hover:text-white transition-all"
+            title="Mesh Nodes"
           >
             <Layers className="w-3.5 h-3.5 text-[#2997ff]" />
-            <span className="text-white/90">Mesh Nodes</span>
-            <span className="bg-white/[0.08] text-[#30d158] text-[10px] px-2 py-0.5 rounded-full font-medium apple-tabular">
-              {cases.filter(c => c.status !== 'resolved' && c.status !== 'false_alarm').length + officers.filter(o => o.onDuty).length + drones.length} Online
-            </span>
+            <span className="hidden sm:inline">Mesh</span>
           </button>
         </div>
 
-        {/* Expandable Connected Nodes Modal / Drawer */}
+        {/* Expandable Connected Nodes Modal */}
         {showConnectedNodes && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-full max-w-2xl px-4 animate-scaleUp">
             <ConnectedDevicesPanel
@@ -638,94 +638,43 @@ export function App() {
           </div>
         )}
 
-        {/* Floating Right Panel: Single-Point Incident Inspector OR Patrol Units Tracker */}
-        {isRightInspectorOpen && (
-          <aside className="absolute top-3 right-3 bottom-3 z-20 flex flex-col items-end space-y-2 pointer-events-auto">
-            {/* Panel Mode Switcher Pill */}
-            <div className="apple-glass rounded-full p-1 border border-white/[0.12] flex items-center space-x-1 shadow-lg">
+        {/* Floating Right Drawer: Patrol Units Tracker (Only when explicitly opened) */}
+        {showPoliceUnitsDrawer && (
+          <aside className="absolute top-12 right-3 bottom-3 z-20 w-80 md:w-84 rounded-3xl overflow-hidden shadow-2xl animate-slideInRight">
+            <div className="relative h-full">
+              <PoliceTracker
+                officers={officers}
+                selectedCase={selectedCase}
+                onAssignOfficer={handleAssignOfficer}
+              />
               <button
-                onClick={() => {
-                  soundFX.playClickTick();
-                  setRightPanelTab('inspector');
-                }}
-                className={`text-[11px] px-3 py-1 rounded-full font-medium transition-all ${
-                  rightPanelTab === 'inspector'
-                    ? 'bg-[#2997ff] text-white shadow-sm'
-                    : 'text-[#86868b] hover:text-white'
-                }`}
+                onClick={() => setShowPoliceUnitsDrawer(false)}
+                className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/[0.08] hover:bg-white/[0.16] flex items-center justify-center text-[#86868b] hover:text-white transition-all z-30"
               >
-                Incident Inspector
-              </button>
-              <button
-                onClick={() => {
-                  soundFX.playClickTick();
-                  setRightPanelTab('police');
-                }}
-                className={`text-[11px] px-3 py-1 rounded-full font-medium transition-all ${
-                  rightPanelTab === 'police'
-                    ? 'bg-[#0a84ff] text-white shadow-sm'
-                    : 'text-[#86868b] hover:text-white'
-                }`}
-              >
-                Patrol Units ({officers.filter(o => o.onDuty).length})
-              </button>
-              <button
-                onClick={() => setIsRightInspectorOpen(false)}
-                className="w-6 h-6 rounded-full hover:bg-white/[0.1] flex items-center justify-center text-[#86868b] hover:text-white text-xs"
-                title="Collapse ([])"
-              >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
-
-            {/* Active Tab View */}
-            {rightPanelTab === 'inspector' ? (
-              selectedCase ? (
-                <IncidentInspectorCard
-                  selectedCase={selectedCase}
-                  officers={officers}
-                  drones={drones}
-                  onClose={() => setIsRightInspectorOpen(false)}
-                  onVerifyCase={handleVerifyCase}
-                  onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
-                  onAssignOfficer={handleAssignOfficer}
-                  onResolveCase={handleResolveCase}
-                  onCancelCase={handleCancelCase}
-                />
-              ) : (
-                <div className="w-80 apple-glass rounded-3xl p-6 shadow-2xl border border-white/[0.12] text-center space-y-2">
-                  <p className="text-xs text-white/80 font-medium">No Incident Selected</p>
-                  <p className="text-[11px] text-[#86868b]">Select a case from the dispatch queue or click any SOS marker on the map.</p>
-                </div>
-              )
-            ) : (
-              <div className="w-80 md:w-96 h-[calc(100vh-140px)] rounded-3xl overflow-hidden shadow-2xl border border-white/[0.12]">
-                <PoliceTracker
-                  officers={officers}
-                  selectedCase={selectedCase}
-                  onAssignOfficer={handleAssignOfficer}
-                />
-              </div>
-            )}
           </aside>
         )}
 
-        {/* Floating Right Open Pill (When Right Panel is Closed) */}
-        {!isRightInspectorOpen && (
-          <button
-            onClick={() => {
-              soundFX.playClickTick();
-              setIsRightInspectorOpen(true);
-            }}
-            className="absolute top-3 right-3 z-20 apple-glass rounded-2xl px-3.5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center space-x-2 hover:border-[#2997ff]/60 transition-all cursor-pointer group"
-            title="Open Inspector (])"
-          >
-            <span className="text-xs font-semibold text-white">Inspector</span>
-            <PanelRight className="w-4 h-4 text-[#2997ff] group-hover:scale-110 transition-transform" />
-          </button>
+        {/* Floating Right Inspector: Incident Inspector Card (Only when an incident is selected) */}
+        {selectedCase && !showPoliceUnitsDrawer && (
+          <aside className="absolute top-12 right-3 bottom-3 z-20 pointer-events-auto">
+            <IncidentInspectorCard
+              selectedCase={selectedCase}
+              officers={officers}
+              drones={drones}
+              onClose={() => setSelectedCaseId(null)}
+              onVerifyCase={handleVerifyCase}
+              onOpenDispatchModal={(id) => setDispatchModalCaseId(id)}
+              onAssignOfficer={handleAssignOfficer}
+              onResolveCase={handleResolveCase}
+              onCancelCase={handleCancelCase}
+            />
+          </aside>
         )}
 
-        {/* Floating Picture-in-Picture (PiP) Live Drone Camera Feed */}
+        {/* Floating PiP Live Recon Video Feed */}
         {showPiPVideo && activeAirborneDrone && (
           <div className="absolute bottom-20 right-4 z-30">
             <FloatingDronePiP
@@ -735,7 +684,7 @@ export function App() {
           </div>
         )}
 
-        {/* Floating Bottom Center: Autonomous Mother-Child Drone Fleet Dock */}
+        {/* Floating Bottom Center: Autonomous Drone Fleet Dock */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-4xl px-4 pointer-events-auto">
           <DroneControlPanel
             drones={drones}
@@ -748,17 +697,14 @@ export function App() {
         </div>
       </main>
 
-      {/* Raycast / Spotlight Command Palette (⌘K / Ctrl+K) */}
+      {/* Command Palette (⌘K) */}
       <CommandPaletteModal
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         cases={cases}
         officers={officers}
         drones={drones}
-        onSelectCase={(id) => {
-          setSelectedCaseId(id);
-          setIsRightInspectorOpen(true);
-        }}
+        onSelectCase={(id) => setSelectedCaseId(id)}
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         onOpenSuperAdminModal={userSession?.isSuperAdmin ? () => setIsSuperAdminModalOpen(true) : undefined}
@@ -767,7 +713,7 @@ export function App() {
         isMuted={isAudioMuted}
       />
 
-      {/* Manual Location Picker Modal (Shown when GPS denied) */}
+      {/* Location Picker Modal */}
       {showLocationPicker && (
         <LocationPickerModal
           onConfirm={handleManualLocationPick}
@@ -802,16 +748,16 @@ export function App() {
 }
 
 // ============================================================
-// Manual Location Picker Modal
+// Manual Location Picker Modal (SVG Map Pin, No Emojis)
 // ============================================================
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 const pickerIcon = L.divIcon({
-  html: `<div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#0f172a;border:3px solid #2997ff;box-shadow:0 0 20px #0071e3;color:#2997ff;font-weight:bold;font-size:12px;">📍</div>`,
+  html: `<div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#0071e3;border:2px solid #ffffff;box-shadow:0 0 16px rgba(0,113,227,0.7);color:#ffffff;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>`,
   className: 'picker-icon',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
 });
 
 function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
@@ -828,7 +774,7 @@ function LocationPickerModal({ onConfirm, onCancel, onRetryGps }: { onConfirm: (
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-xl flex flex-col items-center justify-center p-4 select-none">
-      <div className="w-full max-w-3xl apple-glass rounded-3xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-3xl liquid-glass rounded-3xl overflow-hidden shadow-2xl">
         <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <MapPin className="w-4 h-4 text-[#2997ff]" />
@@ -842,7 +788,9 @@ function LocationPickerModal({ onConfirm, onCancel, onRetryGps }: { onConfirm: (
               <Navigation className="w-3 h-3 text-[#2997ff]" />
               <span>Retry GPS</span>
             </button>
-            <button onClick={onCancel} className="text-white/60 hover:text-white text-base px-2">✕</button>
+            <button onClick={onCancel} className="text-[#86868b] hover:text-white p-1">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

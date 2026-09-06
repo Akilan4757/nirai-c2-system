@@ -1,5 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, User, Phone, MapPin, Clock, Brain, Mic, Shield, Radio, CheckCircle, XCircle, Send, Navigation, X, ExternalLink, Flame } from 'lucide-react';
+import { 
+  AlertCircle, 
+  User, 
+  Phone, 
+  MapPin, 
+  Clock, 
+  Activity, 
+  Mic, 
+  Shield, 
+  Radio, 
+  CheckCircle, 
+  XCircle, 
+  Send, 
+  Navigation, 
+  X, 
+  ShieldAlert 
+} from 'lucide-react';
 import { Case, Officer, Drone } from '../types';
 import { checkRedZoneCollision } from './LiveMap';
 import { soundFX } from '../utils/audioEffects';
@@ -16,34 +32,34 @@ interface IncidentInspectorCardProps {
   onCancelCase?: (caseId: string) => void;
 }
 
-// Live Waveform Component
-const LiveWaveform: React.FC<{ active: boolean }> = ({ active }) => {
-  const [bars, setBars] = useState([8, 14, 22, 12, 28, 18, 24, 16, 20, 10, 26, 14, 18, 8]);
+// Organic Audio Stream Meter (Subtle, non-distracting)
+const CalmAudioStream: React.FC<{ active: boolean }> = ({ active }) => {
+  const [levels, setLevels] = useState([6, 12, 16, 10, 18, 14, 20, 12, 14, 8]);
 
   useEffect(() => {
     if (!active) return;
     const timer = setInterval(() => {
-      setBars(prev => prev.map(() => Math.floor(Math.random() * 24) + 4));
-    }, 120);
+      setLevels(prev => prev.map(() => Math.floor(Math.random() * 14) + 4));
+    }, 200);
     return () => clearInterval(timer);
   }, [active]);
 
   return (
-    <div className="bg-black/50 p-3 rounded-2xl border border-white/[0.08] flex items-center justify-between">
+    <div className="bg-black/30 px-3 py-2 rounded-xl border border-white/[0.06] flex items-center justify-between">
       <div className="flex items-center space-x-2">
-        <Mic className={`w-3.5 h-3.5 ${active ? 'text-[#bf5af2]' : 'text-[#86868b]'}`} />
-        <span className="text-[11px] font-medium text-white/80">Emergency Voice Stream</span>
+        <Mic className={`w-3 h-3 ${active ? 'text-[#2997ff]' : 'text-[#86868b]'}`} />
+        <span className="text-[10px] text-[#86868b] font-medium">Acoustic Channel</span>
       </div>
-      <div className="flex items-center space-x-1 h-5">
-        {bars.map((height, i) => (
+      <div className="flex items-center space-x-1 h-3.5">
+        {levels.map((h, i) => (
           <div
             key={i}
-            className="w-1 rounded-full transition-all duration-100"
+            className="w-1 rounded-full transition-all duration-200"
             style={{
-              height: active ? `${height}px` : '3px',
+              height: active ? `${h}px` : '3px',
               backgroundColor: active 
-                ? (i % 3 === 0 ? '#bf5af2' : i % 3 === 1 ? '#2997ff' : '#0071e3')
-                : 'rgba(255,255,255,0.15)'
+                ? (i % 2 === 0 ? 'rgba(41, 151, 255, 0.75)' : 'rgba(0, 113, 227, 0.5)')
+                : 'rgba(255, 255, 255, 0.12)'
             }}
           />
         ))}
@@ -69,7 +85,7 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
   const timeAgo = Math.max(1, Math.round((Date.now() - new Date(selectedCase.createdAt).getTime()) / 60000));
   const isBlocked = checkRedZoneCollision(selectedCase.location.lat, selectedCase.location.lng);
 
-  // Calculate distance to all on-duty officers to rank the #1 closest
+  // Proximity calculations
   const rankedOfficers = activeOfficers.map(officer => {
     const R = 6371;
     const dLat = (selectedCase.location.lat - officer.location.lat) * (Math.PI / 180);
@@ -85,68 +101,69 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
 
   const nearest = rankedOfficers[0];
   const assignedOfficer = officers.find(o => o.userId === selectedCase.assignedOfficerUserId);
-  const airborneDrone = drones.find(d => d.status === 'airborne');
 
-  // Deterministic AI triage scores
+  // Deterministic metrics
   const numericId = selectedCase.id.split('-')[1] || '1';
   const isOdd = numericId.charCodeAt(numericId.length - 1) % 2 === 1;
-  const stressScore = Math.min(99, Math.max(50, (selectedCase.severityScore * 10) + (isOdd ? 19 : 5)));
-  const screamDetected = selectedCase.severityScore >= 5;
+  const distressIndex = Math.min(96, Math.max(45, (selectedCase.severityScore * 10) + (isOdd ? 14 : 4)));
+  const acousticDistressAlert = selectedCase.severityScore >= 5;
 
   return (
-    <div className="w-96 apple-glass rounded-3xl shadow-2xl border border-white/[0.12] overflow-hidden flex flex-col z-[1000] animate-slideInRight select-none">
-      {/* Top Header */}
-      <div className="px-5 py-3.5 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
+    <div className="w-80 md:w-84 liquid-glass rounded-3xl shadow-2xl border border-white/[0.12] overflow-hidden flex flex-col z-[1000] select-none animate-slideInRight">
+      {/* Sleek Top Header Bar */}
+      <div className="px-4 py-3 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
         <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#ff453a] animate-apple-pulse" />
-          <span className="apple-headline text-xs font-semibold text-white">Incident Command Inspector</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="apple-tabular text-[11px] bg-white/[0.08] text-[#2997ff] border border-white/[0.1] px-2 py-0.5 rounded-full font-medium">
+          <span className="w-2 h-2 rounded-full bg-[#ff453a] animate-apple-pulse" />
+          <span className="apple-headline text-xs font-semibold text-white">Incident Triage</span>
+          <span className="apple-tabular text-[10px] bg-white/[0.08] text-[#2997ff] border border-white/[0.1] px-2 py-0.5 rounded-full font-medium">
             {selectedCase.id}
           </span>
-          <button
-            onClick={onClose}
-            className="w-6 h-6 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white transition-all"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
+        <button
+          onClick={() => {
+            soundFX.playClickTick();
+            onClose();
+          }}
+          className="w-6 h-6 rounded-full bg-white/[0.06] hover:bg-white/[0.14] flex items-center justify-center text-[#86868b] hover:text-white transition-all"
+          title="Close Inspector (Esc)"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      {/* Main Content Body */}
-      <div className="p-5 space-y-4 max-h-[calc(100vh-180px)] overflow-y-auto">
-        {/* Victim Profile Banner */}
-        <div className="apple-card p-4 rounded-2xl flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+      {/* Main Body */}
+      <div className="p-4 space-y-3.5 max-h-[calc(100vh-170px)] overflow-y-auto">
+        {/* Reporter Information */}
+        <div className="apple-card p-3.5 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
             {selectedCase.reporterPhotoUrl ? (
               <img
                 src={selectedCase.reporterPhotoUrl}
                 alt={selectedCase.reporterName}
-                className="w-11 h-11 rounded-2xl object-cover border border-white/20 shadow-md"
+                className="w-9 h-9 rounded-xl object-cover border border-white/20"
               />
             ) : (
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2997ff]/20 to-[#0071e3]/30 border border-white/15 flex items-center justify-center">
-                <User className="w-5 h-5 text-[#2997ff]" />
+              <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center">
+                <User className="w-4 h-4 text-[#2997ff]" />
               </div>
             )}
             <div>
-              <h3 className="apple-headline font-semibold text-sm text-white">{selectedCase.reporterName}</h3>
+              <h3 className="apple-headline font-semibold text-xs text-white leading-tight">{selectedCase.reporterName}</h3>
               <a
                 href={`tel:${selectedCase.reporterPhone}`}
                 className="text-[11px] text-[#2997ff] hover:underline flex items-center space-x-1 mt-0.5"
               >
-                <Phone className="w-3 h-3" />
+                <Phone className="w-2.5 h-2.5" />
                 <span className="apple-tabular">{selectedCase.reporterPhone}</span>
               </a>
             </div>
           </div>
 
           <div className="text-right">
-            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase ${
-              selectedCase.status === 'airborne' ? 'bg-[#bf5af2]/20 text-[#bf5af2]' :
-              selectedCase.status === 'unit_assigned' ? 'bg-[#ff9f0a]/20 text-[#ff9f0a]' :
-              'bg-[#ff453a]/20 text-[#ff453a]'
+            <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+              selectedCase.status === 'airborne' ? 'bg-[#bf5af2]/15 text-[#bf5af2] border border-[#bf5af2]/30' :
+              selectedCase.status === 'unit_assigned' ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border border-[#ff9f0a]/30' :
+              'bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30'
             }`}>
               {selectedCase.status.replace('_', ' ')}
             </span>
@@ -154,98 +171,80 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
           </div>
         </div>
 
-        {/* Location & GPS Strip */}
-        <div className="apple-card p-3.5 rounded-2xl space-y-1.5 text-xs">
+        {/* Location GPS */}
+        <div className="apple-card p-3 rounded-xl space-y-1 text-xs">
           <div className="flex items-start space-x-2">
-            <MapPin className="w-4 h-4 text-[#ff453a] flex-shrink-0 mt-0.5" />
+            <MapPin className="w-3.5 h-3.5 text-[#ff453a] flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-white/90 font-medium line-clamp-2 leading-relaxed">{selectedCase.address}</p>
-              <span className="text-[11px] text-[#2997ff] font-medium apple-tabular block mt-0.5">
+              <p className="text-white/90 text-[11px] leading-relaxed line-clamp-2">{selectedCase.address}</p>
+              <span className="text-[10px] text-[#2997ff] font-medium apple-tabular block mt-0.5">
                 {selectedCase.location.lat.toFixed(5)}°N, {selectedCase.location.lng.toFixed(5)}°E
               </span>
             </div>
           </div>
         </div>
 
-        {/* AI Threat Triage Card */}
-        <div className="apple-card p-4 rounded-2xl space-y-3">
+        {/* Threat Evaluation (Apple Health aesthetic, calm and informative) */}
+        <div className="apple-card p-3.5 rounded-2xl space-y-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-[#bf5af2]">
-              <Brain className="w-4 h-4" />
-              <span>Apple AI Intelligence Triage</span>
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-white/90">
+              <Activity className="w-3.5 h-3.5 text-[#2997ff]" />
+              <span>Biometric & Audio Analysis</span>
             </div>
-            <span className="text-[10px] bg-[#bf5af2]/15 text-[#bf5af2] border border-[#bf5af2]/25 px-2 py-0.5 rounded-full font-medium">
-              Real-time ML
-            </span>
+            {acousticDistressAlert && (
+              <span className="text-[9px] bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/25 px-2 py-0.5 rounded-full font-medium">
+                High Distress
+              </span>
+            )}
           </div>
 
-          {/* Stress Meter */}
           <div>
             <div className="flex justify-between text-[11px] mb-1">
-              <span className="text-[#86868b]">Citizen Stress / Panic Index</span>
-              <span className="font-semibold text-white apple-tabular">{stressScore}%</span>
+              <span className="text-[#86868b]">Distress Index</span>
+              <span className="font-medium text-white apple-tabular">{distressIndex}%</span>
             </div>
-            <div className="w-full bg-white/[0.08] h-2 rounded-full overflow-hidden">
+            <div className="w-full bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-500"
+                className="h-full rounded-full transition-all duration-300"
                 style={{
-                  width: `${stressScore}%`,
-                  background: stressScore > 75 ? 'linear-gradient(90deg, #ff9f0a, #ff453a)' : 'linear-gradient(90deg, #2997ff, #bf5af2)',
+                  width: `${distressIndex}%`,
+                  backgroundColor: distressIndex > 75 ? '#ff453a' : '#2997ff',
                 }}
               />
             </div>
           </div>
 
-          {/* Indicators */}
-          <div className="flex items-center space-x-2 pt-1">
-            {screamDetected ? (
-              <span className="text-[10px] bg-[#ff453a]/20 text-[#ff453a] border border-[#ff453a]/30 px-2.5 py-0.5 rounded-full font-semibold animate-apple-pulse flex items-center space-x-1">
-                <Flame className="w-3 h-3" />
-                <span>Acoustic Distress Confirmed</span>
-              </span>
-            ) : (
-              <span className="text-[10px] bg-white/[0.06] text-white/70 px-2.5 py-0.5 rounded-full">
-                Normal Vocal Decibels
-              </span>
-            )}
-          </div>
-
-          {/* Live Waveform */}
-          <LiveWaveform active={selectedCase.status !== 'resolved'} />
+          <CalmAudioStream active={selectedCase.status !== 'resolved'} />
         </div>
 
-        {/* 1-Click Smart Dispatch Recommendations */}
-        <div className="space-y-2.5">
-          <span className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider block">
-            Automated Unit Recommendations
-          </span>
-
-          {/* Nearest Police Officer */}
-          <div className="apple-card p-3.5 rounded-2xl space-y-2 border border-white/[0.1]">
+        {/* Direct Dispatch Options */}
+        <div className="space-y-2">
+          {/* Nearest Patrol Unit */}
+          <div className="apple-card p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2">
-                <Shield className="w-4 h-4 text-[#0a84ff]" />
+                <Shield className="w-3.5 h-3.5 text-[#0a84ff]" />
                 <div>
-                  <span className="font-semibold text-white block">
-                    {assignedOfficer ? assignedOfficer.name : nearest ? nearest.officer.name : 'No Officers Available'}
+                  <span className="font-semibold text-white block text-[11px]">
+                    {assignedOfficer ? assignedOfficer.name : nearest ? nearest.officer.name : 'No Units Available'}
                   </span>
                   <span className="text-[10px] text-[#86868b]">
-                    {assignedOfficer ? `Badge ${assignedOfficer.badgeId} • Assigned` : nearest ? `Rank 1 Nearest • ${nearest.officer.vehicle}` : ''}
+                    {assignedOfficer ? `Badge ${assignedOfficer.badgeId} • Assigned` : nearest ? `Closest Unit • ${nearest.officer.vehicle}` : ''}
                   </span>
                 </div>
               </div>
               {nearest && !assignedOfficer && (
                 <div className="text-right apple-tabular text-xs">
-                  <span className="text-[#2997ff] font-semibold block">{nearest.distKm.toFixed(2)} km</span>
-                  <span className="text-[#ff9f0a] text-[10px]">~{nearest.etaMin}m ETA</span>
+                  <span className="text-[#2997ff] font-medium block text-[11px]">{nearest.distKm.toFixed(2)} km</span>
+                  <span className="text-[#ff9f0a] text-[10px]">~{nearest.etaMin}m</span>
                 </div>
               )}
             </div>
 
             {assignedOfficer ? (
-              <div className="bg-[#0a84ff]/15 border border-[#0a84ff]/30 p-2 rounded-xl flex items-center justify-between text-[11px] text-[#0a84ff]">
-                <span>Officer currently dispatched</span>
-                <CheckCircle className="w-3.5 h-3.5" />
+              <div className="bg-[#0a84ff]/10 border border-[#0a84ff]/25 px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[11px] text-[#0a84ff]">
+                <span>Unit Dispatched</span>
+                <CheckCircle className="w-3 h-3" />
               </div>
             ) : nearest ? (
               <button
@@ -253,37 +252,37 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
                   soundFX.playDispatchConfirm();
                   onAssignOfficer(selectedCase.id, nearest.officer.userId);
                 }}
-                className="w-full apple-btn-primary text-xs py-2 flex items-center justify-center space-x-1.5 font-medium"
+                className="w-full apple-btn-primary text-[11px] py-1.5 flex items-center justify-center space-x-1.5 font-medium"
               >
-                <Navigation className="w-3.5 h-3.5" />
-                <span>Assign {nearest.officer.name} (ETA ~{nearest.etaMin}m)</span>
+                <Navigation className="w-3 h-3" />
+                <span>Assign {nearest.officer.name} (~{nearest.etaMin}m)</span>
               </button>
             ) : null}
           </div>
 
-          {/* Drone Recon Launch Recommendation */}
-          <div className="apple-card p-3.5 rounded-2xl space-y-2 border border-white/[0.1]">
+          {/* Autonomous Drone Recon */}
+          <div className="apple-card p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2">
-                <Radio className="w-4 h-4 text-[#bf5af2]" />
+                <Radio className="w-3.5 h-3.5 text-[#bf5af2]" />
                 <div>
-                  <span className="font-semibold text-white block">Autonomous Drone Recon</span>
+                  <span className="font-semibold text-white block text-[11px]">Autonomous Drone Recon</span>
                   <span className="text-[10px] text-[#86868b]">
-                    {isBlocked ? 'Chennai Port Air Command Block' : 'Airspace Cleared via DGCA'}
+                    {isBlocked ? 'Restricted Airspace' : 'DGCA Airspace Cleared'}
                   </span>
                 </div>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                isBlocked ? 'bg-[#ff453a]/20 text-[#ff453a]' : 'bg-[#30d158]/15 text-[#30d158]'
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${
+                isBlocked ? 'bg-[#ff453a]/15 text-[#ff453a]' : 'bg-[#30d158]/15 text-[#30d158]'
               }`}>
-                {isBlocked ? 'Restricted Airspace' : 'Ready for Launch'}
+                {isBlocked ? 'Blocked' : 'Ready'}
               </span>
             </div>
 
             {selectedCase.status === 'airborne' || selectedCase.status === 'on_scene' ? (
-              <div className="bg-[#bf5af2]/15 border border-[#bf5af2]/30 p-2 rounded-xl flex items-center justify-between text-[11px] text-[#bf5af2]">
-                <span>Recon Drone on-scene / streaming live</span>
-                <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <div className="bg-[#bf5af2]/10 border border-[#bf5af2]/25 px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[11px] text-[#bf5af2]">
+                <span>Drone Airborne & Streaming</span>
+                <Radio className="w-3 h-3 animate-pulse" />
               </div>
             ) : (
               <button
@@ -292,20 +291,20 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
                   soundFX.playClickTick();
                   onOpenDispatchModal(selectedCase.id);
                 }}
-                className={`w-full py-2 apple-pill-btn text-xs flex items-center justify-center space-x-1.5 font-medium ${
+                className={`w-full py-1.5 apple-pill-btn text-[11px] flex items-center justify-center space-x-1.5 font-medium ${
                   isBlocked
                     ? 'bg-white/[0.05] text-white/40 border border-white/[0.06] cursor-not-allowed'
                     : 'apple-btn-primary'
                 }`}
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>{isBlocked ? 'Launch Blocked by Airspace' : 'Launch Mother Drone Alpha'}</span>
+                <Send className="w-3 h-3" />
+                <span>{isBlocked ? 'Airspace Restriction Active' : 'Launch Mother Drone Alpha'}</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Resolution Toolbar */}
+        {/* Action Bottom Bar */}
         <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between gap-2">
           {selectedCase.status === 'raised' && (
             <button
@@ -313,7 +312,7 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
                 soundFX.playClickTick();
                 onVerifyCase(selectedCase.id, false);
               }}
-              className="apple-btn-secondary flex-1 py-2 text-xs flex items-center justify-center space-x-1"
+              className="apple-btn-secondary flex-1 py-1.5 text-[11px] flex items-center justify-center space-x-1"
             >
               <Phone className="w-3 h-3 text-[#30d158]" />
               <span>Verify Call</span>
@@ -326,10 +325,10 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
                 soundFX.playClickTick();
                 onCancelCase(selectedCase.id);
               }}
-              className="apple-btn-destructive flex-1 py-2 text-xs flex items-center justify-center space-x-1"
+              className="apple-btn-destructive flex-1 py-1.5 text-[11px] flex items-center justify-center space-x-1"
             >
               <XCircle className="w-3 h-3" />
-              <span>Cancel Alert</span>
+              <span>Cancel</span>
             </button>
           )}
 
@@ -339,10 +338,10 @@ export const IncidentInspectorCard: React.FC<IncidentInspectorCardProps> = ({
                 soundFX.playResolveChime();
                 onResolveCase(selectedCase.id);
               }}
-              className="apple-pill-btn flex-1 bg-[#30d158] hover:bg-[#32d75b] text-black font-semibold py-2 text-xs flex items-center justify-center space-x-1 shadow-md shadow-[#30d158]/30"
+              className="apple-pill-btn flex-1 bg-[#30d158] hover:bg-[#32d75b] text-black font-medium py-1.5 text-[11px] flex items-center justify-center space-x-1"
             >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span>Mark Safe & Resolve</span>
+              <CheckCircle className="w-3 h-3" />
+              <span>Resolve</span>
             </button>
           )}
         </div>

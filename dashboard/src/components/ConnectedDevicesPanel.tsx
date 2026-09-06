@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Shield, Radio, Layers, RefreshCw, Monitor, ChevronDown, ChevronUp } from 'lucide-react';
+import { Smartphone, Shield, Radio, Layers, RefreshCw, Monitor, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Case, Officer, Drone } from '../types';
 
 interface ConnectedDevicesPanelProps {
@@ -35,7 +35,7 @@ export const ConnectedDevicesPanel: React.FC<ConnectedDevicesPanelProps> = ({
   };
 
   return (
-    <div className="apple-glass rounded-2xl overflow-hidden transition-all duration-200">
+    <div className="liquid-glass rounded-2xl overflow-hidden transition-all duration-200">
       {/* Header Bar */}
       <div
         onClick={() => setIsExpanded(!isExpanded)}
@@ -82,7 +82,9 @@ export const ConnectedDevicesPanel: React.FC<ConnectedDevicesPanelProps> = ({
       {pingStatus && (
         <div className="bg-[#0071e3]/10 border-t border-[#0071e3]/20 px-4 py-1.5 text-[11px] text-[#2997ff] flex items-center justify-between">
           <span>{pingStatus}</span>
-          <button onClick={() => setPingStatus(null)} className="text-white/60 hover:text-white text-xs">✕</button>
+          <button onClick={() => setPingStatus(null)} className="text-white/60 hover:text-white p-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 

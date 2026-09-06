@@ -367,7 +367,7 @@ fun CivilianHomeScreen() {
                             )
                             Text(
                                 text = if (SmsFallbackManager.isSmsSentAndConfirmed) 
-                                    "SMS Dispatch Confirmed ✓" 
+                                    "SMS Dispatch Confirmed" 
                                 else 
                                     "SMS fallback channel ready for emergency transmission",
                                 fontSize = 11.sp,

@@ -346,7 +346,7 @@ fun PoliceHomeScreen() {
                             }
 
                             // Dynamic expanded routing view once case is acknowledged
-                            AnimatedVisibility(visible = ackStatus == "RESPONDING ✓") {
+                            AnimatedVisibility(visible = ackStatus == "RESPONDING") {
                                 var isDarkMap by remember { mutableStateOf(true) }
 
                                 Column(modifier = Modifier.padding(top = 12.dp)) {
@@ -470,11 +470,11 @@ fun PoliceHomeScreen() {
                                                     officerUserId = officerUserId
                                                 )
                                                 dispatchStatus = dispatchStatus + (dispatch.id to
-                                                    if (result != null) "RESPONDING ✓" else "FAILED — RETRY")
+                                                    if (result != null) "RESPONDING" else "FAILED — RETRY")
                                             }
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4)),
-                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0071E3)),
+                                        shape = RoundedCornerShape(12.dp),
                                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))

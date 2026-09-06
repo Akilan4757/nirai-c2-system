@@ -40,13 +40,13 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
     <div className="w-full max-w-4xl mx-auto transition-all duration-300 select-none">
       {/* Collapsed Minimalist Dock Pill */}
       {!isExpanded ? (
-        <div className="apple-glass rounded-full px-5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center justify-between space-x-4 cursor-pointer hover:border-[#bf5af2]/40 transition-all"
+        <div className="liquid-glass rounded-full px-5 py-2.5 shadow-2xl border border-white/[0.12] flex items-center justify-between space-x-4 cursor-pointer hover:border-[#bf5af2]/40 transition-all"
              onClick={() => {
                soundFX.playClickTick();
                setIsExpanded(true);
              }}>
           <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 rounded-full bg-[#bf5af2]/20 border border-[#bf5af2]/40 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-full bg-[#bf5af2]/15 border border-[#bf5af2]/30 flex items-center justify-center">
               <Cpu className="w-3.5 h-3.5 text-[#bf5af2]" />
             </div>
             <div className="flex items-center space-x-2 text-xs">
@@ -57,7 +57,7 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
               <span className="text-[#86868b]">•</span>
               <span className="text-[11px] text-[#f5f5f7]">
                 {childDrones.filter(c => c.status === 'airborne').length > 0 ? (
-                  <span className="text-[#bf5af2] font-semibold">1 Recon In Flight</span>
+                  <span className="text-[#bf5af2] font-semibold">1 Recon Active</span>
                 ) : (
                   <span>{childDrones.filter(c => c.status === 'docked' || c.status === 'charging').length} Bays Docked</span>
                 )}
@@ -93,7 +93,7 @@ export const DroneControlPanel: React.FC<DroneControlPanelProps> = ({
         </div>
       ) : (
         /* Expanded Floating Card */
-        <div className="apple-glass rounded-3xl p-4 shadow-2xl border border-white/[0.12] flex flex-col justify-between">
+        <div className="liquid-glass rounded-3xl p-4 shadow-2xl border border-white/[0.12] flex flex-col justify-between">
           {/* Panel Header */}
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
             <div className="flex items-center space-x-2">
