@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Terminal, X, AlertTriangle, UserCheck } from 'lucide-react';
+import { Terminal, X, AlertTriangle, UserCheck, Video } from 'lucide-react';
 
 interface SimulatorControlsProps {
   isOpen: boolean;
   onClose: () => void;
   onTriggerSOS: (name: string, locationName: string, lat: number, lng: number) => void;
   onSimulateOfficerMove: () => void;
+  onSimulateMediaStream?: () => void;
 }
 
 const SAMPLE_LOCATIONS = [
@@ -20,6 +21,7 @@ export const SimulatorControls: React.FC<SimulatorControlsProps> = ({
   onClose,
   onTriggerSOS,
   onSimulateOfficerMove,
+  onSimulateMediaStream,
 }) => {
   const [selectedLocIndex, setSelectedLocIndex] = useState(0);
   const [reporterName, setReporterName] = useState('Ananya Ramachandran');
@@ -93,6 +95,19 @@ export const SimulatorControls: React.FC<SimulatorControlsProps> = ({
               <UserCheck className="w-3.5 h-3.5 text-[#0a84ff]" />
               <span>Update Patrol GPS Heartbeat</span>
             </button>
+
+            {onSimulateMediaStream && (
+              <button
+                onClick={() => {
+                  onSimulateMediaStream();
+                  onClose();
+                }}
+                className="w-full apple-btn-secondary py-2.5 text-xs font-medium flex items-center justify-center space-x-2 border border-[#2997ff]/30 text-[#2997ff] hover:bg-[#2997ff]/10"
+              >
+                <Video className="w-3.5 h-3.5 text-[#2997ff]" />
+                <span>Stream Live Camera & Audio (A/V Uplink)</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

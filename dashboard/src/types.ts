@@ -31,6 +31,8 @@ export interface Case {
   mediaUrl?: string;
   reporterPhotoUrl?: string | null;
   cancelledBy?: string | null;
+  audioData?: string;
+  decibelLevel?: number;
 }
 
 export interface Officer {
@@ -57,6 +59,8 @@ export interface Drone {
   homeLocation?: Location;
   parentMotherId?: string;
   streamUrl?: string | null;
+  audioData?: string;
+  decibelLevel?: number;
 }
 
 export interface AuditLog {

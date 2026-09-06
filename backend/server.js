@@ -606,10 +606,23 @@ app.post('/v1/drones/telemetry', (req, res) => {
 
 // Mobile Drone Live Camera Frame Stream Endpoint
 app.post('/v1/drones/stream-frame', (req, res) => {
-  const { droneId, frameData } = req.body;
+  const { droneId, frameData, audioData, decibelLevel } = req.body;
   const targetId = droneId || 'drone-c1';
-  let drone = state.drones.find(d => d.id === targetId);
 
+  // Check if targetId is an SOS Case (Civilian caller or police officer stream)
+  const caseItem = state.cases.find(c => c.id === targetId);
+  if (caseItem) {
+    caseItem.mediaUrl = frameData;
+    if (decibelLevel !== undefined) caseItem.severityScore = Math.max(caseItem.severityScore, Math.min(10, Math.round(decibelLevel / 10)));
+    broadcast('CASE_FRAME_UPDATED', { caseId: targetId, mediaUrl: frameData, audioData, decibelLevel });
+    if (audioData) {
+      broadcast('CASE_AUDIO_CHUNK', { caseId: targetId, audioChunk: audioData, decibelLevel, timestamp: Date.now() });
+    }
+    syncToFirebase('cases', caseItem.id, caseItem);
+    return res.json({ success: true, type: 'case_stream' });
+  }
+
+  let drone = state.drones.find(d => d.id === targetId);
   if (!drone) {
     drone = {
       id: targetId,
@@ -628,8 +641,60 @@ app.post('/v1/drones/stream-frame', (req, res) => {
   }
 
   broadcast('DRONE_FRAME_UPDATED', { droneId: targetId, streamUrl: frameData });
+  if (audioData) {
+    broadcast('DRONE_AUDIO_CHUNK', { droneId: targetId, audioChunk: audioData, decibelLevel, timestamp: Date.now() });
+  }
 
-  res.json({ success: true });
+  res.json({ success: true, type: 'drone_stream' });
+});
+
+// Dedicated Civilian / Incident Scene Live Video & Audio Stream Endpoint
+app.post('/v1/cases/:id/stream-frame', (req, res) => {
+  const caseId = req.params.id;
+  const { frameData, audioData, decibelLevel } = req.body;
+
+  let caseItem = state.cases.find(c => c.id === caseId);
+  if (!caseItem) {
+    // If case not yet in local memory, initialize stub
+    caseItem = {
+      id: caseId,
+      reporterUserId: 'usr-mobile',
+      reporterName: 'Live Civilian Streamer',
+      reporterPhone: '+919876543210',
+      status: 'raised',
+      location: { lat: 13.0827, lng: 80.2707 },
+      address: 'Live Incident Stream Coordinate',
+      severityScore: 7,
+      createdAt: new Date().toISOString(),
+      mediaUrl: frameData
+    };
+    state.cases.unshift(caseItem);
+  } else {
+    caseItem.mediaUrl = frameData;
+  }
+
+  broadcast('CASE_FRAME_UPDATED', { caseId, mediaUrl: frameData, audioData, decibelLevel });
+  if (audioData) {
+    broadcast('CASE_AUDIO_CHUNK', { caseId, audioChunk: audioData, decibelLevel, timestamp: Date.now() });
+  }
+  syncToFirebase('cases', caseId, caseItem);
+
+  res.json({ success: true, caseId });
+});
+
+// Dedicated Incident Scene Live Audio Chunk Stream Endpoint
+app.post('/v1/cases/:id/stream-audio', (req, res) => {
+  const caseId = req.params.id;
+  const { audioData, decibelLevel } = req.body;
+
+  broadcast('CASE_AUDIO_CHUNK', {
+    caseId,
+    audioChunk: audioData,
+    decibelLevel: decibelLevel || 50,
+    timestamp: Date.now()
+  });
+
+  res.json({ success: true, caseId });
 });
 
 // Erase All Data & Hardware Reset Endpoint

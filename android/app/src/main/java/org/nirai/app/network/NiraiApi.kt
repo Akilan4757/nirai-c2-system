@@ -278,7 +278,16 @@ object NiraiApi {
         }
     }
 
-    suspend fun sendDroneFrame(droneId: String, frameBase64: String): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * Send live optical video frame and acoustic audio chunk from mobile node.
+     * Supports both drone node IDs (e.g. "drone-c1") and SOS case IDs (e.g. "case-101").
+     */
+    suspend fun sendDroneFrame(
+        droneId: String,
+        frameBase64: String,
+        audioBase64: String? = null,
+        decibelLevel: Int? = null
+    ): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = URL("$BASE_URL/v1/drones/stream-frame")
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -288,12 +297,42 @@ object NiraiApi {
                 connectTimeout = 3000
                 readTimeout = 3000
             }
-            val body = """
-                {
-                    "droneId": "$droneId",
-                    "frameData": "$frameBase64"
-                }
-            """.trimIndent()
+            val audioPart = if (audioBase64 != null) """, "audioData": "$audioBase64"""" else ""
+            val dbPart = if (decibelLevel != null) """, "decibelLevel": $decibelLevel""" else ""
+            val body = """{"droneId": "$droneId", "frameData": "$frameBase64"$audioPart$dbPart}"""
+
+            OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Send dedicated civilian scene video frame and acoustic audio buffer to SOS case endpoint.
+     */
+    suspend fun sendCaseMediaFeed(
+        caseId: String,
+        frameBase64: String?,
+        audioBase64: String? = null,
+        decibelLevel: Int? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL/v1/cases/$caseId/stream-frame")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 3000
+                readTimeout = 3000
+            }
+            val framePart = if (frameBase64 != null) """"frameData": "$frameBase64"""" else """"frameData": null"""
+            val audioPart = if (audioBase64 != null) """, "audioData": "$audioBase64"""" else ""
+            val dbPart = if (decibelLevel != null) """, "decibelLevel": $decibelLevel""" else ""
+            val body = """{$framePart$audioPart$dbPart}"""
+
             OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
             val code = conn.responseCode
             conn.disconnect()

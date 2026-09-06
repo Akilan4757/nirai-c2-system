@@ -5,6 +5,9 @@ import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.hardware.Camera
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.util.Base64
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -30,6 +33,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.nirai.app.network.NiraiApi
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 @Composable
 fun CameraStreamView(
@@ -42,6 +47,7 @@ fun CameraStreamView(
     var isNightVision by remember { mutableStateOf(false) }
     var isFlashOn by remember { mutableStateOf(false) }
     var streamFps by remember { mutableStateOf(30) }
+    var micDecibel by remember { mutableStateOf(45) }
 
     Box(
         modifier = modifier
@@ -50,10 +56,12 @@ fun CameraStreamView(
             .background(if (isNightVision) Color(0xFF064E3B) else Color(0xFF0F172A))
             .border(1.dp, if (isNightVision) Color(0xFF10B981) else Color(0xFF38BDF8), RoundedCornerShape(16.dp))
     ) {
-        // Native Android Camera Hardware Surface
+        // Native Android Camera Hardware Surface + Live Audio Record Sampler
         AndroidView(
             factory = { ctx ->
-                CameraPreviewSurface(ctx, streamId)
+                CameraPreviewSurface(ctx, streamId) { db ->
+                    micDecibel = db
+                }
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -72,7 +80,7 @@ fun CameraStreamView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.6f),
+                    color = Color.Black.copy(alpha = 0.65f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -94,17 +102,44 @@ fun CameraStreamView(
                     }
                 }
 
-                Surface(
-                    color = if (isNightVision) Color(0xFF10B981).copy(alpha = 0.3f) else Color(0xFF06B6D4).copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = if (isNightVision) "IR NIGHT RECON" else "OPTICAL FEED",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isNightVision) Color(0xFFA7F3D0) else Color(0xFFCFFAFE),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Live Audio Decibel Capsule
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = if (micDecibel > 75) Color(0xFFEF4444) else Color(0xFF30D158),
+                                shape = CircleShape,
+                                modifier = Modifier.size(6.dp)
+                            ) {}
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "MIC $micDecibel dB",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (micDecibel > 75) Color(0xFFFCA5A5) else Color(0xFFA7F3D0)
+                            )
+                        }
+                    }
+
+                    // Optical/IR Mode Badge
+                    Surface(
+                        color = if (isNightVision) Color(0xFF10B981).copy(alpha = 0.3f) else Color(0xFF06B6D4).copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = if (isNightVision) "IR NIGHT RECON" else "OPTICAL FEED",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isNightVision) Color(0xFFA7F3D0) else Color(0xFFCFFAFE),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -136,9 +171,9 @@ fun CameraStreamView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Broadcast → C2 Dashboard Live (siteon-47a8f)",
+                    text = "A/V Uplink → C2 Dashboard (siteon-47a8f)",
                     fontSize = 10.sp,
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = Color.White.copy(alpha = 0.85f),
                     fontWeight = FontWeight.Medium
                 )
 
@@ -177,18 +212,34 @@ fun CameraStreamView(
 }
 
 /**
- * SurfaceView for rendering hardware camera preview frames & streaming live feed.
+ * SurfaceView for rendering hardware camera preview frames & streaming live video + audio feed.
  * @param targetStreamId The unique stream identifier sent to the backend (e.g. "drone-c1" or "case-1234").
+ * @param onAudioDecibelChange Callback invoked when ambient microphone RMS decibels are sampled.
  */
-class CameraPreviewSurface(context: Context, private val targetStreamId: String = "drone-c1") : SurfaceView(context), SurfaceHolder.Callback {
+class CameraPreviewSurface(
+    context: Context,
+    private val targetStreamId: String = "drone-c1",
+    private val onAudioDecibelChange: (Int) -> Unit = {}
+) : SurfaceView(context), SurfaceHolder.Callback {
+
     private var camera: Camera? = null
     private var lastFrameTime = 0L
+
+    // Audio sampling state
+    private var audioRecord: AudioRecord? = null
+    @Volatile private var isRecordingAudio = false
+    @Volatile private var latestAudioBase64: String? = null
+    @Volatile private var latestDecibel: Int = 45
 
     init {
         holder.addCallback(this)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        // Start microphone audio capture loop
+        startAudioSampling()
+
+        // Start hardware camera preview
         try {
             if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
                 Camera.getNumberOfCameras() > 0) {
@@ -219,6 +270,10 @@ class CameraPreviewSurface(context: Context, private val targetStreamId: String 
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // Stop audio sampling
+        stopAudioSampling()
+
+        // Stop camera
         try {
             camera?.setPreviewCallback(null)
             camera?.stopPreview()
@@ -227,6 +282,67 @@ class CameraPreviewSurface(context: Context, private val targetStreamId: String 
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun startAudioSampling() {
+        if (isRecordingAudio) return
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val sampleRate = 16000
+        val channelConfig = AudioFormat.CHANNEL_IN_MONO
+        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+        val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+        if (minBufferSize <= 0) return
+
+        try {
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                channelConfig,
+                audioFormat,
+                minBufferSize * 2
+            )
+            audioRecord?.startRecording()
+            isRecordingAudio = true
+
+            Thread {
+                val buffer = ShortArray(minBufferSize)
+                while (isRecordingAudio && audioRecord != null) {
+                    val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                    if (read > 0) {
+                        var sum = 0.0
+                        for (i in 0 until read) {
+                            sum += buffer[i] * buffer[i]
+                        }
+                        val rms = Math.sqrt(sum / read)
+                        val db = if (rms > 1.0) (20 * Math.log10(rms)).toInt().coerceIn(30, 95) else 35
+                        latestDecibel = db
+                        onAudioDecibelChange(db)
+
+                        // Convert short buffer to little-endian byte array for PCM Base64 transmission
+                        val byteBuf = ByteBuffer.allocate(read * 2).order(ByteOrder.LITTLE_ENDIAN)
+                        for (i in 0 until read) {
+                            byteBuf.putShort(buffer[i])
+                        }
+                        latestAudioBase64 = "data:audio/pcm;base64," + Base64.encodeToString(byteBuf.array(), Base64.NO_WRAP)
+                    }
+                    Thread.sleep(150)
+                }
+            }.apply { isDaemon = true; start() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopAudioSampling() {
+        isRecordingAudio = false
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+        } catch (e: Exception) {}
     }
 
     private fun setupPreviewCallback() {
@@ -238,8 +354,15 @@ class CameraPreviewSurface(context: Context, private val targetStreamId: String 
                     val size = cam.parameters?.previewSize ?: return@setPreviewCallback
                     val base64 = processNv21ToJpegBase64(data, size.width, size.height)
                     if (base64 != null) {
+                        val currentAudio = latestAudioBase64
+                        val currentDb = latestDecibel
                         CoroutineScope(Dispatchers.IO).launch {
-                            NiraiApi.sendDroneFrame(targetStreamId, base64)
+                            NiraiApi.sendDroneFrame(
+                                droneId = targetStreamId,
+                                frameBase64 = base64,
+                                audioBase64 = currentAudio,
+                                decibelLevel = currentDb
+                            )
                         }
                     }
                 } catch (e: Exception) {

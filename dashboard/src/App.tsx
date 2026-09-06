@@ -265,7 +265,9 @@ export function App() {
               etaSeconds: data.etaSeconds || null,
               droneId: data.droneId || null,
               verificationNotes: data.verificationNotes || 'Pending operator verification call.',
-              mediaUrl: data.mediaUrl || undefined
+              mediaUrl: data.mediaUrl || undefined,
+              audioData: data.audioData || undefined,
+              decibelLevel: data.decibelLevel || undefined
             } as Case;
           }).filter(c => c.location && typeof c.location.lat === 'number' && typeof c.location.lng === 'number');
 
@@ -333,6 +335,25 @@ export function App() {
             setDrones(msg.payload);
           } else if (msg.type === 'DRONE_FRAME_UPDATED') {
             setDrones(prev => prev.map(d => d.id === msg.payload.droneId ? { ...d, streamUrl: msg.payload.streamUrl } : d));
+          } else if (msg.type === 'DRONE_AUDIO_CHUNK') {
+            setDrones(prev => prev.map(d => d.id === msg.payload.droneId ? {
+              ...d,
+              audioData: msg.payload.audioChunk,
+              decibelLevel: msg.payload.decibelLevel !== undefined ? msg.payload.decibelLevel : d.decibelLevel
+            } : d));
+          } else if (msg.type === 'CASE_FRAME_UPDATED') {
+            setCases(prev => prev.map(c => c.id === msg.payload.caseId ? {
+              ...c,
+              mediaUrl: msg.payload.mediaUrl,
+              audioData: msg.payload.audioData || c.audioData,
+              decibelLevel: msg.payload.decibelLevel !== undefined ? msg.payload.decibelLevel : c.decibelLevel
+            } : c));
+          } else if (msg.type === 'CASE_AUDIO_CHUNK') {
+            setCases(prev => prev.map(c => c.id === msg.payload.caseId ? {
+              ...c,
+              audioData: msg.payload.audioChunk,
+              decibelLevel: msg.payload.decibelLevel !== undefined ? msg.payload.decibelLevel : c.decibelLevel
+            } : c));
           } else if (msg.type === 'DRONE_TELEMETRY_STREAM') {
             setDrones(prev => prev.map(d => {
               if (d.id === msg.payload.mother.id) return { ...d, location: msg.payload.mother.location, batteryPct: msg.payload.mother.batteryPct, speedKmh: msg.payload.mother.speedKmh, altitudeMeters: msg.payload.mother.altitude };
@@ -454,6 +475,60 @@ export function App() {
     const lat = operatorLocation.lat + (Math.random() - 0.5) * 0.01;
     const lng = operatorLocation.lng + (Math.random() - 0.5) * 0.01;
     fetch(`${API_BASE}/v1/officers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'usr-p1', lat, lng, onDuty: true }) }).catch(() => {});
+  };
+
+  const handleSimulateMediaStream = (targetCaseId?: string) => {
+    const targetId = targetCaseId || selectedCaseId || cases[0]?.id;
+    if (!targetId) return;
+
+    soundFX.playClickTick();
+
+    let frameCount = 0;
+    const interval = setInterval(() => {
+      frameCount++;
+      const timeStr = new Date().toLocaleTimeString();
+      const decibel = Math.floor(Math.random() * 28) + 55;
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0a192f"/>
+            <stop offset="50%" stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#020617"/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="360" fill="url(#g)"/>
+        <line x1="0" y1="${(frameCount * 25) % 360}" x2="640" y2="${(frameCount * 25) % 360}" stroke="#00f2ff" stroke-width="1.5" opacity="0.35"/>
+        <circle cx="320" cy="180" r="100" stroke="#38bdf8" stroke-width="1" fill="none" opacity="0.4"/>
+        <circle cx="320" cy="180" r="40" stroke="#ff453a" stroke-width="1" fill="none" opacity="0.6"/>
+        <line x1="320" y1="60" x2="320" y2="300" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
+        <line x1="200" y1="180" x2="440" y2="180" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
+        <circle cx="320" cy="180" r="4" fill="#ff453a"/>
+        <rect x="20" y="20" width="220" height="36" rx="6" fill="#000000" opacity="0.7"/>
+        <circle cx="35" cy="38" r="5" fill="#ff453a"/>
+        <text x="48" y="42" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff">LIVE FEED • ${targetId.toUpperCase()}</text>
+        <rect x="20" y="305" width="260" height="35" rx="6" fill="#000000" opacity="0.7"/>
+        <text x="32" y="327" font-family="monospace" font-size="11" fill="#30d158">REC ${timeStr} • ${decibel} dB</text>
+        <rect x="460" y="20" width="160" height="36" rx="6" fill="#000000" opacity="0.7"/>
+        <text x="475" y="42" font-family="monospace" font-size="12" fill="#38bdf8">1080P • 30 FPS</text>
+      </svg>`;
+
+      const base64Frame = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+
+      fetch(`${API_BASE}/v1/cases/${targetId}/stream-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frameData: base64Frame,
+          audioData: 'data:audio/pcm;base64,AAAA//8=',
+          decibelLevel: decibel
+        })
+      }).catch(() => {});
+
+      if (frameCount >= 40) {
+        clearInterval(interval);
+      }
+    }, 250);
   };
   const handleClearAllRecords = async () => {
     if (window.confirm('Erase all active cases, audit logs, and hardware telemetry from both Cloud Firestore and server?')) {
@@ -670,6 +745,7 @@ export function App() {
               onAssignOfficer={handleAssignOfficer}
               onResolveCase={handleResolveCase}
               onCancelCase={handleCancelCase}
+              onSimulateMediaStream={handleSimulateMediaStream}
             />
           </aside>
         )}
@@ -724,7 +800,13 @@ export function App() {
 
       {/* Tactical Modals */}
       <AuditLogModal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} logs={auditLogs} />
-      <SimulatorControls isOpen={isSimulatorOpen} onClose={() => setIsSimulatorOpen(false)} onTriggerSOS={handleTriggerSOS} onSimulateOfficerMove={handleSimulateOfficerMove} />
+      <SimulatorControls
+        isOpen={isSimulatorOpen}
+        onClose={() => setIsSimulatorOpen(false)}
+        onTriggerSOS={handleTriggerSOS}
+        onSimulateOfficerMove={handleSimulateOfficerMove}
+        onSimulateMediaStream={() => handleSimulateMediaStream()}
+      />
 
       {userSession?.isSuperAdmin && (
         <SuperAdminModal
